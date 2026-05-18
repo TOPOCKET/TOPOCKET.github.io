@@ -1,6 +1,7 @@
 import type { ToolItem } from '../types/tool'
+import { parseOrThrow, toolListSchema } from './schemas'
 
-export const tools: ToolItem[] = [
+const rawTools: ToolItem[] = [
   {
     id: 'game-calc',
     name: '游戏数值计算器',
@@ -38,3 +39,5 @@ export const tools: ToolItem[] = [
     status: 'ready',
   },
 ]
+
+export const tools = parseOrThrow('tools', toolListSchema, rawTools)

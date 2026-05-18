@@ -1,19 +1,14 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import HomePage from '../pages/HomePage.vue'
-import LinksPage from '../pages/LinksPage.vue'
+import { appRoutes } from './route-meta'
+
+const appName = 'Sopronwitta'
 
 export const router = createRouter({
   history: createWebHashHistory(),
-  routes: [
-    {
-      path: '/',
-      name: 'home',
-      component: HomePage,
-    },
-    {
-      path: '/links',
-      name: 'links',
-      component: LinksPage,
-    },
-  ],
+  routes: appRoutes,
+})
+
+router.afterEach((to) => {
+  const pageTitle = typeof to.meta.title === 'string' ? to.meta.title : ''
+  document.title = pageTitle ? `${pageTitle} | ${appName}` : appName
 })

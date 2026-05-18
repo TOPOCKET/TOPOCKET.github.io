@@ -1,6 +1,7 @@
 import type { QuickLinkItem } from '../types/link'
+import { parseOrThrow, quickLinkListSchema } from './schemas'
 
-export const quickLinks: QuickLinkItem[] = [
+const rawQuickLinks: QuickLinkItem[] = [
   {
     id: 'chatgpt',
     name: 'ChatGPT',
@@ -16,6 +17,13 @@ export const quickLinks: QuickLinkItem[] = [
     favorite: true,
   },
   {
+    id: 'fatcat',
+    name: 'fatcat',
+    url: 'https://fccfweb20231204.fatcatcf.com/dashboard',
+    category: 'dev',
+    favorite: true,
+  },
+  {
     id: 'google-photos',
     name: 'Google Photos',
     url: 'https://photos.google.com/',
@@ -23,3 +31,5 @@ export const quickLinks: QuickLinkItem[] = [
     favorite: true,
   },
 ]
+
+export const quickLinks = parseOrThrow('quickLinks', quickLinkListSchema, rawQuickLinks)

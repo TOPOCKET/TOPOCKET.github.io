@@ -17,10 +17,8 @@ const emit = defineEmits<{
       v-for="item in categories"
       :key="item.key"
       type="button"
-      class="rounded-lg border px-3 py-1.5 text-sm transition"
-      :class="modelValue === item.key
-        ? 'border-cyan-400 bg-cyan-400/15 text-cyan-200'
-        : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500'"
+      class="ui-filter-btn"
+      :class="{ 'is-active': modelValue === item.key }"
       @click="emit('update:modelValue', item.key)"
     >
       {{ item.label }}

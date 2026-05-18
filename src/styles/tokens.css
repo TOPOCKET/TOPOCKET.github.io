@@ -1,0 +1,72 @@
+:root {
+  color-scheme: light dark;
+  --bg: #edf1f7;
+  --bg-elevated: rgb(255 255 255 / 86%);
+  --panel: rgb(255 255 255 / 88%);
+  --panel-strong: rgb(255 255 255 / 94%);
+  --card-base: rgb(255 255 255 / 58%);
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --border: rgb(100 116 139 / 26%);
+  --border-strong: rgb(100 116 139 / 42%);
+  --accent: rgb(15 23 42 / 52%);
+  --accent-soft: rgb(15 23 42 / 14%);
+  --ok-soft: rgb(16 185 129 / 15%);
+  --ok-text: #047857;
+  --ok-border: rgb(4 120 87 / 45%);
+  --warn-soft: rgb(245 158 11 / 16%);
+  --warn-text: #b45309;
+  --warn-border: rgb(180 83 9 / 45%);
+  --glass-highlight: rgb(255 255 255 / 34%);
+  --glass-shadow-near: 0 2px 6px rgb(15 23 42 / 6%);
+  --glass-shadow-far: 0 12px 24px rgb(15 23 42 / 10%);
+  --glass-shadow: var(--glass-shadow-near), var(--glass-shadow-far);
+  --shadow: 0 8px 18px rgb(15 23 42 / 8%);
+  --glass-blur: 10px;
+  --blob-visibility: 1;
+  --radius-panel: 16px;
+  --radius-control: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #05070d;
+    --bg-elevated: rgb(15 23 42 / 76%);
+    --panel: rgb(17 24 39 / 72%);
+    --panel-strong: rgb(17 24 39 / 86%);
+    --card-base: rgb(17 24 39 / 62%);
+    --text-primary: #e2e8f0;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
+    --border: rgb(148 163 184 / 24%);
+    --border-strong: rgb(148 163 184 / 36%);
+    --accent: rgb(226 232 240 / 56%);
+    --accent-soft: rgb(226 232 240 / 14%);
+    --ok-soft: rgb(16 185 129 / 15%);
+    --ok-text: #6ee7b7;
+    --ok-border: rgb(110 231 183 / 42%);
+    --warn-soft: rgb(245 158 11 / 16%);
+    --warn-text: #fcd34d;
+    --warn-border: rgb(252 211 77 / 42%);
+    --glass-highlight: rgb(255 255 255 / 10%);
+    --glass-shadow-near: 0 2px 8px rgb(2 6 23 / 42%);
+    --glass-shadow-far: 0 18px 38px rgb(2 6 23 / 55%);
+    --glass-shadow: var(--glass-shadow-near), var(--glass-shadow-far);
+    --shadow: 0 10px 26px rgb(2 6 23 / 38%);
+    --glass-blur: 16px;
+    --blob-visibility: 1.18;
+  }
+}
+
+body {
+  margin: 0;
+  font-family: "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background: var(--bg);
+  color: var(--text-primary);
+  background-image: radial-gradient(circle at top, rgb(96 165 250 / 8%), transparent 30%);
+}
+
+#app {
+  min-height: 100vh;
+}
