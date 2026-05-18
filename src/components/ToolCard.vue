@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RouterLink } from 'vue-router'
 import type { ToolItem } from '../types/tool'
 
 defineProps<{
@@ -35,5 +36,22 @@ defineProps<{
     <div class="mt-auto text-xs text-slate-500">
       路径：{{ tool.path }}
     </div>
+
+    <RouterLink
+      v-if="tool.status === 'ready'"
+      :to="tool.path"
+      class="mt-3 inline-flex items-center justify-center rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-200 transition hover:border-cyan-400 hover:bg-cyan-500/15"
+    >
+      打开工具
+    </RouterLink>
+
+    <button
+      v-else
+      type="button"
+      disabled
+      class="mt-3 inline-flex cursor-not-allowed items-center justify-center rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-400"
+    >
+      即将上线
+    </button>
   </article>
 </template>

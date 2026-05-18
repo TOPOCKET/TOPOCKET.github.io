@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import HomePage from '../pages/HomePage.vue'
+import LinksPage from '../pages/LinksPage.vue'
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -8,6 +9,11 @@ export const router = createRouter({
       path: '/',
       name: 'home',
       component: HomePage,
+    },
+    {
+      path: '/links',
+      name: 'links',
+      component: LinksPage,
     },
   ],
 })
