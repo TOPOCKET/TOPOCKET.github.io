@@ -18,7 +18,16 @@ const rawTools: ToolItem[] = [
     category: 'game',
     tags: ['益智', '键盘'],
     path: '/tools/mini-game-2048',
-    status: 'coming-soon',
+    status: 'ready',
+  },
+  {
+    id: 'memory-match',
+    name: 'Memory Match',
+    description: '记忆翻牌小游戏，支持计时、步数和重开。',
+    category: 'game',
+    tags: ['翻牌', '记忆', '益智'],
+    path: '/tools/memory-match',
+    status: 'ready',
   },
   {
     id: 'prompt-templates',

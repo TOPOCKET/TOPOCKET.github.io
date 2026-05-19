@@ -2,9 +2,9 @@
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import BlobLayer from '../components/BlobLayer.vue'
-import { quickLinks } from '../data/links'
 import type { QuickLinkItem } from '../types/link'
 import { createPanelMotionPreset } from '../composables/useBlobMotion'
+import { linksStore } from '../stores/linksStore'
 
 const categoryTitleMap: Record<string, string> = {
   ai: 'AI',
@@ -12,10 +12,12 @@ const categoryTitleMap: Record<string, string> = {
   media: '媒体',
 }
 
+const links = linksStore.load()
+
 const groupedLinks = computed(() => {
   const grouped = new Map<string, QuickLinkItem[]>()
 
-  quickLinks.forEach((item) => {
+  links.forEach((item) => {
     const bucket = grouped.get(item.category)
     if (bucket) {
       bucket.push(item)

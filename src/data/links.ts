@@ -1,7 +1,7 @@
 import type { QuickLinkItem } from '../types/link'
 import { parseOrThrow, quickLinkListSchema } from './schemas'
 
-const rawQuickLinks: QuickLinkItem[] = [
+export const defaultQuickLinks: QuickLinkItem[] = [
   {
     id: 'chatgpt',
     name: 'ChatGPT',
@@ -32,4 +32,4 @@ const rawQuickLinks: QuickLinkItem[] = [
   },
 ]
 
-export const quickLinks = parseOrThrow('quickLinks', quickLinkListSchema, rawQuickLinks)
+export const quickLinks = parseOrThrow('quickLinks', quickLinkListSchema, defaultQuickLinks)
