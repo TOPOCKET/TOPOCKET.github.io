@@ -1,0 +1,20 @@
+[
+  {
+    "id": "nimble",
+    "name": "灵巧",
+    "category": "agi",
+    "stat": { "str": 0, "tec": 0, "agi": 5, "con": 0, "per": 0, "wil": 0 }
+  },
+  {
+    "id": "focus",
+    "name": "专注",
+    "category": "tec",
+    "stat": { "str": 0, "tec": 8, "agi": 0, "con": 0, "per": 5, "wil": 0 }
+  },
+  {
+    "id": "fortitude",
+    "name": "坚韧",
+    "category": "con",
+    "stat": { "str": 0, "tec": 0, "agi": 0, "con": 5, "per": 0, "wil": 8 }
+  }
+]

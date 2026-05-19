@@ -4,6 +4,7 @@ import LinksPage from '../pages/LinksPage.vue'
 import MemoryMatchPage from '../pages/MemoryMatchPage.vue'
 import MiniGame2048Page from '../pages/MiniGame2048Page.vue'
 import PromptsPage from '../pages/PromptsPage.vue'
+import ZhushenSimulatorPage from '../pages/ZhushenSimulatorPage.vue'
 
 export interface AppRouteMeta {
   title: string
@@ -47,6 +48,17 @@ export const appRoutes: RouteRecordRaw[] = [
     },
   },
   {
+    path: '/tools/game-calc',
+    name: 'game-calc',
+    component: ZhushenSimulatorPage,
+    meta: {
+      title: '诸神皇冠培养模拟器',
+      icon: 'calculator',
+      permission: 'public',
+      order: 4,
+    },
+  },
+  {
     path: '/tools/mini-game-2048',
     name: 'mini-game-2048',
     component: MiniGame2048Page,
@@ -54,7 +66,7 @@ export const appRoutes: RouteRecordRaw[] = [
       title: '2048 Mini',
       icon: 'gamepad-2',
       permission: 'public',
-      order: 4,
+      order: 5,
     },
   },
   {
@@ -65,7 +77,7 @@ export const appRoutes: RouteRecordRaw[] = [
       title: 'Memory Match',
       icon: 'cards',
       permission: 'public',
-      order: 5,
+      order: 6,
     },
   },
 ]

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "sword-king",
+    "name": "王者剑",
+    "slot": "main_hand",
+    "stat": { "str": 6, "tec": 4, "agi": 0, "con": 0, "per": 0, "wil": 0 }
+  },
+  {
+    "id": "armor-guard",
+    "name": "守护甲",
+    "slot": "armor",
+    "stat": { "str": 6, "tec": 4, "agi": 0, "con": 0, "per": 0, "wil": 0 }
+  },
+  {
+    "id": "ring-hawk",
+    "name": "鹰眼戒",
+    "slot": "accessory",
+    "stat": { "str": 0, "tec": 0, "agi": 0, "con": 0, "per": 0, "wil": 0 }
+  },
+  {
+    "id": "fashion-crown",
+    "name": "王冠时装",
+    "slot": "head_fashion",
+    "stat": { "str": 0, "tec": 0, "agi": 0, "con": 0, "per": 0, "wil": 0 }
+  }
+]

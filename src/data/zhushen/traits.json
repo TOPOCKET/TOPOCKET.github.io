@@ -1,0 +1,14 @@
+[
+  {
+    "id": "trait_power",
+    "name": "强壮",
+    "slot": "stigma",
+    "stat": { "str": 3, "tec": 0, "agi": 0, "con": 2, "per": 0, "wil": 0 }
+  },
+  {
+    "id": "trait_sharp",
+    "name": "敏锐",
+    "slot": "learning",
+    "stat": { "str": 0, "tec": 3, "agi": 2, "con": 0, "per": 0, "wil": 0 }
+  }
+]

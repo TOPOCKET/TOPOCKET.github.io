@@ -50,6 +50,19 @@ Direct `localStorage.setItem/getItem` in pages/components is not allowed.
 - Migrate:
   - Reserved; currently no legacy key
 
+### 4) Zhushen Custom Data
+
+- Key: `sopronwitta:tool:zhushen:custom:v1`
+- Store: `src/stores/zhushenCustomStore.ts`
+- Schema: `zhushenCustomSchema` (zod)
+- Default:
+  - `jobs: []`
+  - `equips: []`
+  - `skills: []`
+  - `traits: []`
+- Migrate:
+  - Reserved; currently no legacy key
+
 ## New Tool Onboarding Checklist
 
 1. Define key in `src/storage/keys.ts`

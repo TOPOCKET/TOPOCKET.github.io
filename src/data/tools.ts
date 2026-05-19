@@ -4,10 +4,10 @@ import { parseOrThrow, toolListSchema } from './schemas'
 const rawTools: ToolItem[] = [
   {
     id: 'game-calc',
-    name: '游戏数值计算器',
-    description: '用于伤害、成本、收益和时间投入的快速估算。',
+    name: '诸神皇冠培养模拟器',
+    description: '按转职路径逐级模拟成长并计算最终六维面板。',
     category: 'calculator',
-    tags: ['RPG', '成长', '资源规划'],
+    tags: ['RPG', '成长', '转职路径'],
     path: '/tools/game-calc',
     status: 'ready',
   },
