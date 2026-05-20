@@ -11,7 +11,7 @@
     "id": "apprentice-rider",
     "name": "见习骑手",
     "tier": 1,
-    "panel": { "str": 2, "tec": 2, "agi": 2, "con": 2, "per": 2, "wil": 2 },
+    "panel": { "str": 3, "tec": 3, "agi": 3, "con": 3, "per": 3, "wil": 3 },
     "growth": { "str": 0.2263, "tec": 0.1616, "agi": 0.097, "con": 0.1616, "per": 0, "wil": 0 },
     "require": { "str": 5, "tec": 10, "agi": 0, "con": 0, "per": 0, "wil": 0 }
   },
@@ -19,7 +19,7 @@
     "id": "light-cavalry",
     "name": "轻骑兵",
     "tier": 2,
-    "panel": { "str": 3, "tec": 3, "agi": 3, "con": 3, "per": 3, "wil": 3 },
+    "panel": { "str": 5, "tec": 5, "agi": 5, "con": 5, "per": 5, "wil": 5 },
     "growth": { "str": 0.4364, "tec": 0.5455, "agi": 0.1455, "con": 0.3273, "per": 0, "wil": 0 },
     "require": { "str": 10, "tec": 15, "agi": 0, "con": 0, "per": 0, "wil": 0 }
   },
@@ -27,7 +27,7 @@
     "id": "royal-knight",
     "name": "皇骑",
     "tier": 3,
-    "panel": { "str": 4, "tec": 4, "agi": 4, "con": 4, "per": 4, "wil": 4 },
+    "panel": { "str": 8, "tec": 8, "agi": 8, "con": 8, "per": 8, "wil": 8 },
     "growth": { "str": 0.7758, "tec": 0.9697, "agi": 0.2586, "con": 0.5818, "per": 0, "wil": 0 },
     "require": { "str": 22, "tec": 30, "agi": 0, "con": 0, "per": 0, "wil": 0 }
   }

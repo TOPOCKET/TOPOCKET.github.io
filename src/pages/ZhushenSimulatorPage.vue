@@ -9,10 +9,9 @@ import {
   builtinZhushenSkills,
   builtinZhushenTraits,
 } from '../data/zhushen'
-import type { AttrVector, PromotionStep, ScorePreset, SimulationInput } from '../features/zhushen-simulator'
+import type { AttrVector, PromotionStep, ScorePreset, SearchProgress, SearchResult, SimulationInput } from '../features/zhushen-simulator'
 import {
   formatVec,
-  searchZhushenPlans,
   simulateZhushen,
   zhushenEquipListSchema,
   zhushenJobListSchema,
@@ -57,6 +56,11 @@ const searchSummary = ref<{ exploredStates: number; prunedByDominance: number } 
 const topPlans = ref<Array<{ rank: number; score: number; final: AttrVector; route: string; promotions: PromotionStep[] }>>([])
 const errorText = ref('')
 const selectionError = ref('')
+const searchPending = ref(false)
+const searchProgress = ref<SearchProgress | null>(null)
+let searchWorker: Worker | null = null
+let searchReqId = 0
+let parallelWorkers: Worker[] = []
 
 const traitSlotLabel: Record<string, string> = {
   face: '脸',
@@ -238,17 +242,150 @@ const resetCustom = () => {
 const addPromotion = () => promotions.value.push({ level: 1, toJobId: jobs.value[0]?.id ?? '', equipIds: [], skillIds: [] })
 const removePromotion = (idx: number) => promotions.value.splice(idx, 1)
 
-const calculate = () => {
+const makeWorker = (): Worker => new Worker(new URL('../workers/zhushen-search.worker.ts', import.meta.url), { type: 'module' })
+
+const runSearchInWorker = (input: SimulationInput): Promise<SearchResult> =>
+  new Promise((resolve, reject) => {
+    if (!searchWorker) searchWorker = makeWorker()
+    const reqId = ++searchReqId
+    const onMessage = (
+      event: MessageEvent<{
+        id: number
+        ok: boolean
+        result?: SearchResult
+        progress?: SearchProgress
+        error?: string
+      }>,
+    ) => {
+      if (event.data.id !== reqId) return
+      if (event.data.progress) {
+        searchProgress.value = event.data.progress
+        return
+      }
+      searchWorker?.removeEventListener('message', onMessage)
+      if (event.data.ok && event.data.result) resolve(event.data.result)
+      else reject(new Error(event.data.error ?? 'worker search error'))
+    }
+    searchWorker.addEventListener('message', onMessage)
+    searchWorker.postMessage({ id: reqId, input })
+  })
+
+const runParallelSearchInWorkers = async (input: SimulationInput): Promise<SearchResult> => {
+  const jobIds = input.jobs.map((j) => j.id).filter((id) => id !== input.initialJobId)
+  const workerCount = Math.min(Math.max((navigator.hardwareConcurrency || 4) - 1, 2), 4, jobIds.length)
+  if (workerCount <= 1 || !input.search || input.search.maxTransfer <= 0 || jobIds.length === 0) return runSearchInWorker(input)
+
+  parallelWorkers.forEach((w) => w.terminate())
+  parallelWorkers = []
+
+  const tasksQueue: string[][] = jobIds.map((id) => [id])
+  if (tasksQueue.length <= 1) return runSearchInWorker(input)
+
+  const progressByShard = new Map<number, SearchProgress>()
+  const updateAggregateProgress = () => {
+    if (progressByShard.size === 0) return
+    const rows = [...progressByShard.values()]
+    const totalSteps = rows[0]?.totalSteps || 1
+    const ratio = rows.reduce((acc, p) => acc + p.step / Math.max(p.totalSteps, 1), 0) / rows.length
+    searchProgress.value = {
+      phase: rows.some((p) => p.phase === 'running') ? 'running' : 'completed',
+      step: Math.max(1, Math.round(ratio * totalSteps)),
+      totalSteps,
+      beamSize: rows.reduce((acc, p) => acc + p.beamSize, 0),
+      candidateSize: rows.reduce((acc, p) => acc + p.candidateSize, 0),
+      exploredStates: rows.reduce((acc, p) => acc + p.exploredStates, 0),
+      prunedByDominance: rows.reduce((acc, p) => acc + p.prunedByDominance, 0),
+      poolSize: rows.reduce((acc, p) => acc + p.poolSize, 0),
+      compactionCount: rows.reduce((acc, p) => acc + p.compactionCount, 0),
+      poolPeak: Math.max(...rows.map((p) => p.poolPeak)),
+      stepMs: Math.max(...rows.map((p) => p.stepMs)),
+      routeChecks: rows.reduce((acc, p) => acc + p.routeChecks, 0),
+      routePrunes: rows.reduce((acc, p) => acc + p.routePrunes, 0),
+      groupChecks: rows.reduce((acc, p) => acc + p.groupChecks, 0),
+      groupPrunes: rows.reduce((acc, p) => acc + p.groupPrunes, 0),
+    }
+  }
+
+  const settled: SearchResult[] = []
+  const runTask = (worker: Worker, shardIndex: number, firstStepJobIds: string[]): Promise<SearchResult> =>
+    new Promise((resolve, reject) => {
+      const reqId = ++searchReqId
+      const idleTimeoutMs = 180000
+      let timeout: ReturnType<typeof setTimeout> | null = null
+      const armTimeout = () => {
+        if (timeout) clearTimeout(timeout)
+        timeout = setTimeout(() => {
+          worker.removeEventListener('message', onMessage)
+          reject(new Error(`parallel worker timeout shard=${shardIndex}`))
+        }, idleTimeoutMs)
+      }
+      armTimeout()
+      const workerInput: SimulationInput = {
+        ...input,
+        search: {
+          ...input.search!,
+          firstStepJobIds,
+        },
+      }
+      const onMessage = (event: MessageEvent<{ id: number; ok: boolean; result?: SearchResult; progress?: SearchProgress; error?: string }>) => {
+        if (event.data.id !== reqId) return
+        if (event.data.progress) {
+          armTimeout()
+          progressByShard.set(shardIndex, event.data.progress)
+          updateAggregateProgress()
+          return
+        }
+        if (timeout) clearTimeout(timeout)
+        worker.removeEventListener('message', onMessage)
+        if (event.data.ok && event.data.result) resolve(event.data.result)
+        else reject(new Error(event.data.error ?? 'parallel worker error'))
+      }
+      worker.addEventListener('message', onMessage)
+      worker.postMessage({ id: reqId, input: workerInput })
+    })
+
+  const runners = Array.from({ length: workerCount }, (_, runnerId) => {
+    const worker = makeWorker()
+    parallelWorkers.push(worker)
+    return (async () => {
+      while (tasksQueue.length > 0) {
+        const next = tasksQueue.shift()
+        if (!next) break
+        const result = await runTask(worker, runnerId, next)
+        settled.push(result)
+      }
+    })()
+  })
+  await Promise.all(runners)
+  parallelWorkers.forEach((w) => w.terminate())
+  parallelWorkers = []
+
+  const topPlans = settled
+    .flatMap((x) => x.topPlans)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 20)
+    .map((p, idx) => ({ ...p, rank: idx + 1 }))
+  return {
+    topPlans,
+    exploredStates: settled.reduce((acc, x) => acc + x.exploredStates, 0),
+    prunedByDominance: settled.reduce((acc, x) => acc + x.prunedByDominance, 0),
+  }
+}
+
+const calculate = async () => {
   errorText.value = ''
   output.value = null
   searchSummary.value = null
   topPlans.value = []
+  searchPending.value = false
+  searchProgress.value = null
   try {
     const parsed = zhushenSimulationInputSchema.parse(buildInput())
     const sim = simulateZhushen(parsed)
     output.value = { final: sim.final, growthAcc: sim.growthAcc, jobName: sim.currentJob.name, logs: sim.logs }
     if (parsed.search?.enabled) {
-      const searchResult = searchZhushenPlans(parsed)
+      searchPending.value = true
+      const searchResult = await runParallelSearchInWorkers(parsed)
       searchSummary.value = { exploredStates: searchResult.exploredStates, prunedByDominance: searchResult.prunedByDominance }
       topPlans.value = searchResult.topPlans.slice(0, 10).map((x) => ({
         rank: x.rank,
@@ -260,8 +397,14 @@ const calculate = () => {
             .join(' / ') || '无转职',
         promotions: x.promotions.map((p) => ({ ...p, equipIds: [...p.equipIds], skillIds: [...p.skillIds] })),
       }))
+      searchPending.value = false
+      searchProgress.value = null
     }
   } catch (error) {
+    parallelWorkers.forEach((w) => w.terminate())
+    parallelWorkers = []
+    searchPending.value = false
+    searchProgress.value = null
     errorText.value = error instanceof Error ? error.message : 'unknown error'
   }
 }
@@ -405,7 +548,19 @@ calculate()
     </section>
 
     <div class="mb-4">
-      <button class="ui-btn ui-btn--primary" @click="calculate">计算</button>
+      <button class="ui-btn ui-btn--primary" :disabled="searchPending" @click="calculate">{{ searchPending ? '搜索中...' : '计算' }}</button>
+      <div v-if="searchPending && searchProgress" class="mt-2">
+        <progress class="h-2 w-full" :max="searchProgress.totalSteps" :value="searchProgress.step" />
+        <p class="text-sm text-[var(--text-muted)]">
+          搜索进度: {{ searchProgress.step }}/{{ searchProgress.totalSteps }} | Beam: {{ searchProgress.beamSize }} | 候选: {{ searchProgress.candidateSize }}
+        </p>
+        <p class="text-xs text-[var(--text-muted)]">
+          已探索: {{ searchProgress.exploredStates }} | 已剪枝: {{ searchProgress.prunedByDominance }} | 状态池: {{ searchProgress.poolSize }} | 压缩次数: {{ searchProgress.compactionCount }}
+        </p>
+        <p class="text-xs text-[var(--text-muted)]">
+          峰值状态池: {{ searchProgress.poolPeak }} | 本轮耗时: {{ searchProgress.stepMs }}ms | route命中: {{ searchProgress.routePrunes }}/{{ searchProgress.routeChecks }} | group命中: {{ searchProgress.groupPrunes }}/{{ searchProgress.groupChecks }}
+        </p>
+      </div>
       <p v-if="selectionError" class="mt-2 text-sm text-[var(--warn-text)]">{{ selectionError }}</p>
       <p v-if="errorText" class="mt-2 text-sm text-[var(--warn-text)]">{{ errorText }}</p>
     </div>

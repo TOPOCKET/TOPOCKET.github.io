@@ -3,11 +3,11 @@ import { parseOrThrow, promptListSchema } from './schemas'
 
 const rawPrompts: PromptTemplateItem[] = [
   {
-    id: 'feature-spec',
-    title: '功能规格拆解',
-    purpose: '把需求拆成可执行任务',
-    placeholders: ['feature_name', 'constraints'],
-    content: '将{{feature_name}}拆解为可执行任务，约束条件：{{constraints}}',
+    id: 'microsoft_activated',
+    title: '微软激活脚本',
+    purpose: '微软系列软件激活脚本, 官网链接: https://github.com/massgravel/Microsoft-Activation-Scripts',
+    placeholders: ['微软', 'office', 'Microsoft'],
+    content: 'irm https://get.activated.win | iex',
   },
   {
     id: 'filesystem',

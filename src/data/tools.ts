@@ -31,7 +31,7 @@ const rawTools: ToolItem[] = [
   },
   {
     id: 'prompt-templates',
-    name: 'AI 提示词模板库',
+    name: '代码模板库',
     description: '整理常用模板，支持复制与变量占位。',
     category: 'prompt',
     tags: ['写作', '代码', '翻译'],
