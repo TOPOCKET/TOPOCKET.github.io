@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import BlobLayer from '../components/BlobLayer.vue'
-import { createPanelMotionPreset } from '../composables/useBlobMotion'
+import BlobLayer from '@/components/BlobLayer.vue'
+import { createPanelMotionPreset } from '@/composables/useBlobMotion'
 
 interface CardItem {
   uid: string
@@ -130,8 +130,8 @@ onBeforeUnmount(() => {
     </header>
 
     <section class="mb-6">
-      <article class="glass-panel command-panel p-4" :style="pageMotion.tint">
-        <BlobLayer :blobs="pageMotion.blobs" variant="panel" />
+      <article class="surface-card command-panel p-4" :style="pageMotion.tint">
+        <BlobLayer :blobs="pageMotion.blobs" />
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div class="flex flex-wrap items-center gap-3">
             <div class="ui-chip px-3 py-2">
@@ -155,8 +155,8 @@ onBeforeUnmount(() => {
       </article>
     </section>
 
-    <section class="glass-panel command-panel p-4" :style="boardMotion.tint">
-      <BlobLayer :blobs="boardMotion.blobs" variant="panel" />
+    <section class="surface-card command-panel p-4" :style="boardMotion.tint">
+      <BlobLayer :blobs="boardMotion.blobs" />
       <div class="memory-grid">
         <button
           v-for="(card, index) in deck"

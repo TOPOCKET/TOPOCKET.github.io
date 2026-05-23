@@ -1,9 +1,34 @@
+/**
+ * @file zhushen-simulator 文件说明。
+ * @description 核心业务算法、搜索计算与性能优化逻辑。
+ */
 import { z } from 'zod'
+import { SEARCH_RUNTIME_CONFIG } from '@/config/search'
+import { compactStatePool, MAX_TRANSFER_COUNT, SoAStatePool, type Vec6 } from '@/domains/zhushen/state-pool/soa-state-pool'
+import { filterDominatedByTiming, majorBucket, quantSig, routeHashNext } from '@/domains/zhushen/pruning/search-pruning'
 
+/**
+ * ATTR_KEYS 导出定义。
+ * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
+ */
 export const ATTR_KEYS = ['str', 'tec', 'agi', 'con', 'per', 'wil'] as const
+
+/**
+ * AttrKey 类型定义。
+ * @remarks 该类型用于约束调用边界，变更时请检查上下游类型推断与兼容性。
+ */
 export type AttrKey = (typeof ATTR_KEYS)[number]
+
+/**
+ * AttrVector 类型定义。
+ * @remarks 该类型用于约束调用边界，变更时请检查上下游类型推断与兼容性。
+ */
 export type AttrVector = Record<AttrKey, number>
 
+/**
+ * JobDef 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */
 export interface JobDef {
   id: string
   name: string
@@ -13,6 +38,10 @@ export interface JobDef {
   require: AttrVector
 }
 
+/**
+ * EquipDef 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */
 export interface EquipDef {
   id: string
   name: string
@@ -20,6 +49,10 @@ export interface EquipDef {
   stat: AttrVector
 }
 
+/**
+ * SkillDef 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */
 export interface SkillDef {
   id: string
   name: string
@@ -27,6 +60,10 @@ export interface SkillDef {
   stat: AttrVector
 }
 
+/**
+ * TraitDef 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */
 export interface TraitDef {
   id: string
   name: string
@@ -34,12 +71,20 @@ export interface TraitDef {
   stat: AttrVector
 }
 
+/**
+ * CharacterDef 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */
 export interface CharacterDef {
   base: AttrVector
   trait: AttrVector
   growth: AttrVector
 }
 
+/**
+ * PromotionStep 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */
 export interface PromotionStep {
   level: number
   toJobId: string
@@ -47,8 +92,16 @@ export interface PromotionStep {
   skillIds: string[]
 }
 
+/**
+ * ScorePreset 类型定义。
+ * @remarks 该类型用于约束调用边界，变更时请检查上下游类型推断与兼容性。
+ */
 export type ScorePreset = 'sum' | 'str_first' | 'agi_first' | 'balanced'
 
+/**
+ * SearchConfig 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */
 export interface SearchConfig {
   enabled: boolean
   beamWidth: number
@@ -63,6 +116,10 @@ export interface SearchConfig {
   firstStepJobIds?: string[]
 }
 
+/**
+ * SimulationInput 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */
 export interface SimulationInput {
   targetLevel: number
   initialJobId: string
@@ -79,6 +136,10 @@ export interface SimulationInput {
   ignorePromotionRequirements?: boolean
 }
 
+/**
+ * SimulationResult 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */
 export interface SimulationResult {
   final: AttrVector
   growthAcc: AttrVector
@@ -86,6 +147,10 @@ export interface SimulationResult {
   logs: string[]
 }
 
+/**
+ * SearchPlan 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */
 export interface SearchPlan {
   rank: number
   score: number
@@ -95,12 +160,20 @@ export interface SearchPlan {
   logs: string[]
 }
 
+/**
+ * SearchResult 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */
 export interface SearchResult {
   topPlans: SearchPlan[]
   exploredStates: number
   prunedByDominance: number
 }
 
+/**
+ * SearchProgress 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */
 export interface SearchProgress {
   phase: 'running' | 'completed'
   step: number
@@ -150,15 +223,26 @@ interface SearchRuntimeOptions {
 
 const MIN_LEVEL = 1
 const MAX_LEVEL = 150
-const MAX_TRANSFER_COUNT = 20
-const ROUTE_WASM_THRESHOLD = 256
-const GROUP_WASM_THRESHOLD = 128
+const ROUTE_WASM_THRESHOLD = SEARCH_RUNTIME_CONFIG.routeWasmThreshold
+const GROUP_WASM_THRESHOLD = SEARCH_RUNTIME_CONFIG.groupWasmThreshold
 
 const SCALE = 10000
 const round4 = (value: number): number => Math.round((value + Number.EPSILON) * SCALE) / SCALE
 
+/**
+ * zeroVec。
+ * @return 返回该函数的业务处理结果。
+ * @remarks 该函数属于公共导出能力，修改行为时需同步更新调用方、测试与文档。
+ */
 export const zeroVec = (): AttrVector => ({ str: 0, tec: 0, agi: 0, con: 0, per: 0, wil: 0 })
 
+/**
+ * addVec。
+ * @param a 比较或计算左值。
+ * @param b 比较或计算右值。
+ * @return 返回该函数的业务处理结果。
+ * @remarks 该函数属于公共导出能力，修改行为时需同步更新调用方、测试与文档。
+ */
 export const addVec = (a: AttrVector, b: AttrVector): AttrVector => {
   const out = zeroVec()
   for (const key of ATTR_KEYS) out[key] = round4(a[key] + b[key])
@@ -179,6 +263,12 @@ const toFixed4Vec = (v: AttrVector): AttrVector => {
   return out
 }
 
+/**
+ * formatVec。
+ * @param v 待格式化的属性向量。
+ * @return 返回用于展示的格式化结果。
+ * @remarks 该函数属于公共导出能力，修改行为时需同步更新调用方、测试与文档。
+ */
 export const formatVec = (v: AttrVector): string =>
   `力量 ${v.str.toFixed(4)} | 技巧 ${v.tec.toFixed(4)} | 敏捷 ${v.agi.toFixed(4)} | 体质 ${v.con.toFixed(4)} | 感知 ${v.per.toFixed(4)} | 意志 ${v.wil.toFixed(4)}`
 
@@ -218,11 +308,34 @@ const jobSchema = z.object({
   require: vecSchema,
 })
 
+/**
+ * zhushenJobListSchema 导出定义。
+ * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
+ */
 export const zhushenJobListSchema = z.array(jobSchema)
+
+/**
+ * zhushenEquipListSchema 导出定义。
+ * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
+ */
 export const zhushenEquipListSchema = z.array(equipSchema)
+
+/**
+ * zhushenSkillListSchema 导出定义。
+ * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
+ */
 export const zhushenSkillListSchema = z.array(skillSchema)
+
+/**
+ * zhushenTraitListSchema 导出定义。
+ * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
+ */
 export const zhushenTraitListSchema = z.array(traitSchema)
 
+/**
+ * zhushenSimulationInputSchema 导出定义。
+ * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
+ */
 export const zhushenSimulationInputSchema: z.ZodType<SimulationInput> = z.object({
   targetLevel: z.number().int().min(MIN_LEVEL).max(MAX_LEVEL),
   initialJobId: z.string().min(1),
@@ -305,6 +418,14 @@ const sumStatsByIds = <T extends { id: string; stat: AttrVector }>(source: T[], 
 
 const levelFactor = (level: number): number => (level >= 60 ? 0.35 : 1)
 
+/**
+ * simulateZhushen：执行核心模拟计算流程。
+ * @param input 业务输入对象，包含执行所需上下文数据。
+ * @return 返回计算结果，包含核心指标与产物。
+ * @throws 当业务前置条件不满足或内部处理失败时抛出异常。
+ * @exception 当业务前置条件不满足或内部处理失败时抛出异常。
+ * @remarks 该函数属于公共导出能力，修改行为时需同步更新调用方、测试与文档。
+ */
 export const simulateZhushen = (input: SimulationInput): SimulationResult => {
   const jobsById = new Map(input.jobs.map((job) => [job.id, job]))
   let currentJob = jobsById.get(input.initialJobId)
@@ -383,7 +504,6 @@ export const simulateZhushen = (input: SimulationInput): SimulationResult => {
   return { final: toFixed4Vec(final), growthAcc: toFixed4Vec(growthAcc), currentJob, logs }
 }
 
-type Vec6 = Float32Array
 const vec6 = (): Vec6 => new Float32Array(6)
 const vec6FromAttr = (v: AttrVector): Vec6 => new Float32Array([v.str, v.tec, v.agi, v.con, v.per, v.wil])
 const attrFromVec6 = (v: Vec6): AttrVector => ({ str: round4(v[0]), tec: round4(v[1]), agi: round4(v[2]), con: round4(v[3]), per: round4(v[4]), wil: round4(v[5]) })
@@ -424,173 +544,6 @@ const factorRange = (prefix: Float32Array, fromLevel: number, toLevel: number): 
   return prefix[toLevel] - prefix[fromLevel]
 }
 
-class SoAStatePool {
-  size = 0
-  capacity: number
-  levels: Uint16Array
-  jobIndexes: Uint16Array
-  transferCounts: Uint8Array
-  visitedMasks: BigUint64Array
-  parentIndexes: Int32Array
-  promoLevels: Uint16Array
-  promoJobIndexes: Int16Array
-  promoEquipIndexes: Int16Array
-  promoSkillIndexes: Int16Array
-  routeHashes: Uint32Array
-  lastPromoLevels: Uint16Array
-  promoLevelCodes: Uint16Array
-  growth: Float32Array
-
-  constructor(initialCapacity = 4096) {
-    this.capacity = initialCapacity
-    this.levels = new Uint16Array(initialCapacity)
-    this.jobIndexes = new Uint16Array(initialCapacity)
-    this.transferCounts = new Uint8Array(initialCapacity)
-    this.visitedMasks = new BigUint64Array(initialCapacity)
-    this.parentIndexes = new Int32Array(initialCapacity)
-    this.promoLevels = new Uint16Array(initialCapacity)
-    this.promoJobIndexes = new Int16Array(initialCapacity)
-    this.promoEquipIndexes = new Int16Array(initialCapacity)
-    this.promoSkillIndexes = new Int16Array(initialCapacity)
-    this.routeHashes = new Uint32Array(initialCapacity)
-    this.lastPromoLevels = new Uint16Array(initialCapacity)
-    this.promoLevelCodes = new Uint16Array(initialCapacity * MAX_TRANSFER_COUNT)
-    this.growth = new Float32Array(initialCapacity * 6)
-  }
-
-  private ensureCapacity(): void {
-    if (this.size < this.capacity) return
-    const nextCap = this.capacity * 2
-    const grow = <T extends ArrayBufferView>(ctor: { new (size: number): T }, oldBuf: T, length: number): T => {
-      const next = new ctor(length)
-      ;(next as unknown as { set(data: T, offset?: number): void }).set(oldBuf, 0)
-      return next
-    }
-    this.levels = grow(Uint16Array, this.levels, nextCap)
-    this.jobIndexes = grow(Uint16Array, this.jobIndexes, nextCap)
-    this.transferCounts = grow(Uint8Array, this.transferCounts, nextCap)
-    this.visitedMasks = grow(BigUint64Array, this.visitedMasks, nextCap)
-    this.parentIndexes = grow(Int32Array, this.parentIndexes, nextCap)
-    this.promoLevels = grow(Uint16Array, this.promoLevels, nextCap)
-    this.promoJobIndexes = grow(Int16Array, this.promoJobIndexes, nextCap)
-    this.promoEquipIndexes = grow(Int16Array, this.promoEquipIndexes, nextCap)
-    this.promoSkillIndexes = grow(Int16Array, this.promoSkillIndexes, nextCap)
-    this.routeHashes = grow(Uint32Array, this.routeHashes, nextCap)
-    this.lastPromoLevels = grow(Uint16Array, this.lastPromoLevels, nextCap)
-    this.promoLevelCodes = grow(Uint16Array, this.promoLevelCodes, nextCap * MAX_TRANSFER_COUNT)
-    this.growth = grow(Float32Array, this.growth, nextCap * 6)
-    this.capacity = nextCap
-  }
-
-  push(
-    level: number,
-    jobIndex: number,
-    transferCount: number,
-    visitedMask: bigint,
-    parentIndex: number,
-    promoLevel: number,
-    promoJobIndex: number,
-    promoEquipIndex: number,
-    promoSkillIndex: number,
-    routeHash: number,
-    growthVec: Vec6,
-  ): number {
-    this.ensureCapacity()
-    const i = this.size++
-    this.levels[i] = level
-    this.jobIndexes[i] = jobIndex
-    this.transferCounts[i] = transferCount
-    this.visitedMasks[i] = visitedMask
-    this.parentIndexes[i] = parentIndex
-    this.promoLevels[i] = promoLevel
-    this.promoJobIndexes[i] = promoJobIndex
-    this.promoEquipIndexes[i] = promoEquipIndex
-    this.promoSkillIndexes[i] = promoSkillIndex
-    this.routeHashes[i] = routeHash >>> 0
-    this.lastPromoLevels[i] = promoLevel > 0 ? promoLevel : parentIndex >= 0 ? this.lastPromoLevels[parentIndex] : 0
-    const codeBase = i * MAX_TRANSFER_COUNT
-    if (parentIndex >= 0) {
-      const pBase = parentIndex * MAX_TRANSFER_COUNT
-      for (let t = 0; t < MAX_TRANSFER_COUNT; t += 1) this.promoLevelCodes[codeBase + t] = this.promoLevelCodes[pBase + t]
-    } else {
-      for (let t = 0; t < MAX_TRANSFER_COUNT; t += 1) this.promoLevelCodes[codeBase + t] = 0
-    }
-    if (promoLevel > 0 && transferCount > 0 && transferCount <= MAX_TRANSFER_COUNT) this.promoLevelCodes[codeBase + transferCount - 1] = promoLevel
-    const base = i * 6
-    for (let k = 0; k < 6; k += 1) this.growth[base + k] = growthVec[k]
-    return i
-  }
-
-  fillGrowth(index: number, out: Vec6): void {
-    const base = index * 6
-    for (let k = 0; k < 6; k += 1) out[k] = this.growth[base + k]
-  }
-
-  geGrowth(aIndex: number, bIndex: number): boolean {
-    const aBase = aIndex * 6
-    const bBase = bIndex * 6
-    for (let k = 0; k < 6; k += 1) if (this.growth[aBase + k] < this.growth[bBase + k]) return false
-    return true
-  }
-
-  appendGrowthTo(index: number, out: Vec6): void {
-    const base = index * 6
-    for (let k = 0; k < 6; k += 1) out[k] += this.growth[base + k]
-  }
-
-  discardLastIf(index: number): void {
-    if (index === this.size - 1) this.size -= 1
-  }
-
-  release(index: number): void {
-    // 暂不复用索引，避免前沿结构中残留引用被重写导致错误剪枝。
-    void index
-  }
-}
-
-const compactStatePool = (pool: SoAStatePool, beam: number[]): { pool: SoAStatePool; beam: number[] } => {
-  if (beam.length === 0 || pool.size === 0) return { pool, beam }
-  const keep = new Uint8Array(pool.size)
-  const stack = [...beam]
-  while (stack.length > 0) {
-    const cur = stack.pop()!
-    if (cur < 0 || cur >= pool.size) continue
-    if (keep[cur] === 1) continue
-    keep[cur] = 1
-    const p = pool.parentIndexes[cur]
-    if (p >= 0) stack.push(p)
-  }
-  let keepCount = 0
-  for (let i = 0; i < keep.length; i += 1) keepCount += keep[i]
-  if (keepCount === pool.size) return { pool, beam }
-
-  const newPool = new SoAStatePool(Math.max(keepCount + 64, 256))
-  const map = new Int32Array(pool.size)
-  map.fill(-1)
-  const tmpGrowth = vec6()
-  for (let old = 0; old < pool.size; old += 1) {
-    if (keep[old] === 0) continue
-    pool.fillGrowth(old, tmpGrowth)
-    const oldParent = pool.parentIndexes[old]
-    const newParent = oldParent >= 0 ? map[oldParent] : -1
-    const created = newPool.push(
-      pool.levels[old],
-      pool.jobIndexes[old],
-      pool.transferCounts[old],
-      pool.visitedMasks[old],
-      newParent,
-      pool.promoLevels[old],
-      pool.promoJobIndexes[old],
-      pool.promoEquipIndexes[old],
-      pool.promoSkillIndexes[old],
-      pool.routeHashes[old],
-      tmpGrowth,
-    )
-    map[old] = created
-  }
-  const newBeam = beam.map((idx) => map[idx]).filter((idx) => idx >= 0)
-  return { pool: newPool, beam: newBeam }
-}
 
 class MinHeapTopK {
   private readonly data: Array<{ index: number; score: number }> = []
@@ -639,61 +592,12 @@ class MinHeapTopK {
   }
 }
 
-const quantSig = (v: Vec6): string => {
-  const q = 0.25
-  return `${Math.floor(v[0] / q)}|${Math.floor(v[1] / q)}|${Math.floor(v[2] / q)}|${Math.floor(v[3] / q)}|${Math.floor(v[4] / q)}|${Math.floor(v[5] / q)}`
-}
-const majorBucket = (v: Vec6): string => {
-  const q = 2
-  return `${Math.floor(v[0] / q)}|${Math.floor(v[2] / q)}|${Math.floor(v[3] / q)}`
-}
-
-const routeHashNext = (parentHash: number, promoJobIndex: number): number => ((parentHash * 1315423911) ^ (promoJobIndex + 1)) >>> 0
 
 const yieldNow = async (): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, 0)
   })
 
-const vecDominatesOrEqual = (a: AttrVector, b: AttrVector): boolean =>
-  a.str >= b.str && a.tec >= b.tec && a.agi >= b.agi && a.con >= b.con && a.per >= b.per && a.wil >= b.wil
-
-const routeKey = (promotions: PromotionStep[]): string => promotions.map((p) => p.toJobId).join('>')
-
-const levelsNoLater = (a: PromotionStep[], b: PromotionStep[]): boolean => {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i += 1) if (a[i].level > b[i].level) return false
-  return true
-}
-
-const filterDominatedByTiming = (plans: SearchPlan[]): SearchPlan[] => {
-  const byRoute = new Map<string, SearchPlan[]>()
-  for (const plan of plans) {
-    const key = routeKey(plan.promotions)
-    const bucket = byRoute.get(key) ?? []
-    bucket.push(plan)
-    byRoute.set(key, bucket)
-  }
-  const kept: SearchPlan[] = []
-  for (const bucket of byRoute.values()) {
-    for (let i = 0; i < bucket.length; i += 1) {
-      const cur = bucket[i]
-      let dominated = false
-      for (let j = 0; j < bucket.length; j += 1) {
-        if (i === j) continue
-        const other = bucket[j]
-        if (!levelsNoLater(other.promotions, cur.promotions)) continue
-        if (!vecDominatesOrEqual(other.final, cur.final)) continue
-        if (other.score >= cur.score) {
-          dominated = true
-          break
-        }
-      }
-      if (!dominated) kept.push(cur)
-    }
-  }
-  return kept
-}
 
 const combinations = <T,>(arr: T[], maxPick: number): T[][] => {
   const out: T[][] = [[]]
@@ -727,6 +631,16 @@ const buildEquipLoadouts = (equips: EquipDef[]): string[][] => {
   return out
 }
 
+/**
+ * searchZhushenPlans。
+ * @param input 业务输入对象，包含执行所需上下文数据。
+ * @param onProgress 进度回调，用于上报阶段性执行指标。
+ * @param runtime 运行时参数，包含性能策略和可选依赖注入。
+ * @return 返回计算结果，包含核心指标与产物。
+ * @throws 当业务前置条件不满足或内部处理失败时抛出异常。
+ * @exception 当业务前置条件不满足或内部处理失败时抛出异常。
+ * @remarks 该函数属于公共导出能力，修改行为时需同步更新调用方、测试与文档。
+ */
 export const searchZhushenPlans = async (
   input: SimulationInput,
   onProgress?: (progress: SearchProgress) => void,
@@ -1259,7 +1173,7 @@ export const searchZhushenPlans = async (
     for (const candidate of candidates) topk.push(candidate, scoreOfCandidate(candidate))
     beam = topk.valuesDesc()
     if (pool.size > search.beamWidth * 40) {
-      const compacted = compactStatePool(pool, beam)
+      const compacted = compactStatePool(pool, beam, vec6)
       pool = compacted.pool
       beam = compacted.beam
       compactionCount += 1

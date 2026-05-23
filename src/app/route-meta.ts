@@ -1,11 +1,19 @@
+/**
+ * @file route-meta 文件说明。
+ * @description 应用路由与页面元信息配置。
+ */
 import type { RouteRecordRaw } from 'vue-router'
-import HomePage from '../pages/HomePage.vue'
-import LinksPage from '../pages/LinksPage.vue'
-import MemoryMatchPage from '../pages/MemoryMatchPage.vue'
-import MiniGame2048Page from '../pages/MiniGame2048Page.vue'
-import PromptsPage from '../pages/PromptsPage.vue'
-import ZhushenSimulatorPage from '../pages/ZhushenSimulatorPage.vue'
+import { HomePage } from '@domains/home'
+import { LinksPage } from '@domains/links'
+import { MemoryMatchPage } from '@domains/games/memory-match'
+import { MiniGame2048Page } from '@domains/games/game-2048'
+import { PromptsPage } from '@domains/prompts'
+import { ZhushenSimulatorPage } from '@domains/zhushen'
 
+/**
+ * AppRouteMeta 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */
 export interface AppRouteMeta {
   title: string
   icon: string
@@ -13,6 +21,10 @@ export interface AppRouteMeta {
   order: number
 }
 
+/**
+ * appRoutes 导出定义。
+ * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
+ */
 export const appRoutes: RouteRecordRaw[] = [
   {
     path: '/',

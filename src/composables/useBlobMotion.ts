@@ -1,8 +1,15 @@
-export interface BlobMotionConfig {
+/**
+ * BlobMotionConfig 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */ interface BlobMotionConfig {
   count?: number
   fitContainer?: boolean
 }
 
+/**
+ * BlobMotionPreset 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */
 export interface BlobMotionPreset {
   tint: Record<string, string>
   blobs: Record<string, string>[]
@@ -16,6 +23,53 @@ const hashOf = (text: string) => {
   return value
 }
 
+const pickInRange = (seed: string, tag: string, min: number, range: number) => {
+  return min + (hashOf(`${tag}|${seed}|${tag.length}`) % range)
+}
+
+const pickPoint = (
+  seed: string,
+  tag: string,
+  minX: number,
+  rangeX: number,
+  minY: number,
+  rangeY: number,
+) => {
+  return {
+    x: pickInRange(seed, `${tag}-x`, minX, rangeX),
+    y: pickInRange(seed, `${tag}-y`, minY, rangeY),
+  }
+}
+
+const pushApart = (
+  point: { x: number; y: number },
+  anchor: { x: number; y: number },
+  minDist: number,
+  minX: number,
+  maxX: number,
+  minY: number,
+  maxY: number,
+) => {
+  const dx = point.x - anchor.x
+  const dy = point.y - anchor.y
+  const dist = Math.hypot(dx, dy)
+  if (dist >= minDist) return point
+  const safeDist = dist > 0.001 ? dist : 1
+  const factor = minDist / safeDist
+  const nextX = Math.round(anchor.x + dx * factor)
+  const nextY = Math.round(anchor.y + dy * factor)
+  return {
+    x: Math.max(minX, Math.min(maxX, nextX)),
+    y: Math.max(minY, Math.min(maxY, nextY)),
+  }
+}
+
+/**
+ * createTintVars：创建并返回业务实例。
+ * @param seed 用于生成稳定视觉参数的种子字符串。
+ * @return 返回创建后的实例或结果对象。
+ * @remarks 该函数属于公共导出能力，修改行为时需同步更新调用方、测试与文档。
+ */
 export const createTintVars = (seed: string) => {
   const base = hashOf(`${seed}:hue`)
   const hue = base % 360
@@ -28,6 +82,13 @@ export const createTintVars = (seed: string) => {
   } as Record<string, string>
 }
 
+/**
+ * createBlobVars：创建并返回业务实例。
+ * @param seed 用于生成稳定视觉参数的种子字符串。
+ * @param config 行为配置对象，用于控制数量、边界或开关。
+ * @return 返回创建后的实例或结果对象。
+ * @remarks 该函数属于公共导出能力，修改行为时需同步更新调用方、测试与文档。
+ */
 export const createBlobVars = (seed: string, config: BlobMotionConfig = {}) => {
   const count = config.count ?? 3
   const fitContainer = config.fitContainer ?? false
@@ -45,12 +106,32 @@ export const createBlobVars = (seed: string, config: BlobMotionConfig = {}) => {
     const minX = fitContainer ? 0 : -28
     const minY = fitContainer ? 0 : -24
 
-    const sx = minX + (hashOf(`${key}:sx`) % rangeX)
-    const sy = minY + (hashOf(`${key}:sy`) % rangeY)
-    const mx = minX + (hashOf(`${key}:mx`) % rangeX)
-    const my = minY + (hashOf(`${key}:my`) % rangeY)
-    const ex = minX + (hashOf(`${key}:ex`) % rangeX)
-    const ey = minY + (hashOf(`${key}:ey`) % rangeY)
+    const maxX = minX + rangeX - 1
+    const maxY = minY + rangeY - 1
+    const minPointDist = fitContainer ? 22 : 28
+    const orbitBias = ((i + 1) * 19) % (fitContainer ? 23 : 31)
+
+    let start = pickPoint(key, 'start', minX, rangeX, minY, rangeY)
+    let mid = pickPoint(key, 'mid', minX, rangeX, minY, rangeY)
+    let end = pickPoint(key, 'end', minX, rangeX, minY, rangeY)
+
+    // Break per-blob trajectory similarity by deterministic per-index offset.
+    start = {
+      x: Math.max(minX, Math.min(maxX, start.x + orbitBias)),
+      y: Math.max(minY, Math.min(maxY, start.y - orbitBias)),
+    }
+    mid = {
+      x: Math.max(minX, Math.min(maxX, mid.x - orbitBias)),
+      y: Math.max(minY, Math.min(maxY, mid.y + orbitBias)),
+    }
+    end = {
+      x: Math.max(minX, Math.min(maxX, end.x + Math.round(orbitBias * 0.5))),
+      y: Math.max(minY, Math.min(maxY, end.y + Math.round(orbitBias * 0.5))),
+    }
+
+    mid = pushApart(mid, start, minPointDist, minX, maxX, minY, maxY)
+    end = pushApart(end, start, minPointDist, minX, maxX, minY, maxY)
+    end = pushApart(end, mid, minPointDist * 0.9, minX, maxX, minY, maxY)
 
     return {
       '--blob-size': `${size}%`,
@@ -58,28 +139,34 @@ export const createBlobVars = (seed: string, config: BlobMotionConfig = {}) => {
       '--blob-hue-shift': `${hueShift}`,
       '--blob-duration': `${duration}s`,
       '--blob-delay': `${delay}s`,
-      '--blob-sx': `${sx}%`,
-      '--blob-sy': `${sy}%`,
-      '--blob-mx': `${mx}%`,
-      '--blob-my': `${my}%`,
-      '--blob-ex': `${ex}%`,
-      '--blob-ey': `${ey}%`,
-      '--panel-p1x': `${sx}%`,
-      '--panel-p1y': `${sy}%`,
-      '--panel-p2x': `${mx}%`,
-      '--panel-p2y': `${my}%`,
-      '--panel-p3x': `${ex}%`,
-      '--panel-p3y': `${ey}%`,
+      '--blob-sx': `${start.x}`,
+      '--blob-sy': `${start.y}`,
+      '--blob-mx': `${mid.x}`,
+      '--blob-my': `${mid.y}`,
+      '--blob-ex': `${end.x}`,
+      '--blob-ey': `${end.y}`,
     } as Record<string, string>
   })
 }
 
+/**
+ * createCardMotionPreset：创建并返回业务实例。
+ * @param seed 用于生成稳定视觉参数的种子字符串。
+ * @return 返回创建后的实例或结果对象。
+ * @remarks 该函数属于公共导出能力，修改行为时需同步更新调用方、测试与文档。
+ */
 export const createCardMotionPreset = (seed: string): BlobMotionPreset => ({
   tint: createTintVars(seed),
-  blobs: createBlobVars(seed, { count: 3, fitContainer: false }),
+  blobs: createBlobVars(seed, { count: 5, fitContainer: true }),
 })
 
+/**
+ * createPanelMotionPreset：创建并返回业务实例。
+ * @param seed 用于生成稳定视觉参数的种子字符串。
+ * @return 返回创建后的实例或结果对象。
+ * @remarks 该函数属于公共导出能力，修改行为时需同步更新调用方、测试与文档。
+ */
 export const createPanelMotionPreset = (seed: string): BlobMotionPreset => ({
   tint: createTintVars(seed),
-  blobs: createBlobVars(seed, { count: 3, fitContainer: true }),
+  blobs: createBlobVars(seed, { count: 5, fitContainer: true }),
 })

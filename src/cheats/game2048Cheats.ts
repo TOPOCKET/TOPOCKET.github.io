@@ -1,5 +1,13 @@
+/**
+ * @file game2048Cheats 文件说明。
+ * @description 小游戏作弊码识别与作弊状态运行时控制。
+ */
 import { createCheatRuntime, type CheatRuntime, type GameCheatHooks } from './cheatRuntime'
 
+/**
+ * Game2048CheatAdapter 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */
 export interface Game2048CheatAdapter extends GameCheatHooks {
   runtime: CheatRuntime
   activatePrimaryCheat: () => void
@@ -10,6 +18,11 @@ export interface Game2048CheatAdapter extends GameCheatHooks {
   statusText: () => string | null
 }
 
+/**
+ * createGame2048CheatAdapter：创建并返回业务实例。
+ * @return 返回创建后的实例或结果对象。
+ * @remarks 该函数属于公共导出能力，修改行为时需同步更新调用方、测试与文档。
+ */
 export const createGame2048CheatAdapter = (): Game2048CheatAdapter => {
   const runtime = createCheatRuntime({
     doubleMerge: false,

@@ -17,10 +17,10 @@ const motionPreset = computed(() => createCardMotionPreset(`${props.tool.id}:${p
 
 <template>
   <article
-    class="raycast-card flex h-full flex-col p-4"
+    class="surface-card flex h-full flex-col p-4"
     :style="motionPreset.tint"
   >
-    <BlobLayer :blobs="motionPreset.blobs" variant="card" />
+    <BlobLayer :blobs="motionPreset.blobs" />
 
     <div class="mb-3 flex items-center justify-between gap-2">
       <h3 class="text-base font-semibold text-[var(--text-primary)]">{{ tool.name }}</h3>

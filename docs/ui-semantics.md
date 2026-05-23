@@ -1,52 +1,70 @@
-# UI 语义类使用规范
+# UI 语义规范（最新）
 
 ## 目标
-通过语义类统一样式表达，减少页面中重复的长类串，保证全站玻璃质感一致。
 
-## 组件语义类
+通过统一语义类与组件抽象，保证页面视觉一致、动效一致、维护成本可控。
 
-- `ui-card`
-  - 用于承载内容的基础容器卡片。
-  - 只负责基础玻璃材质，不包含业务色层与光斑层。
+## 核心结论
 
-- `ui-input`
-  - 用于文本输入框。
-  - 自带透明玻璃、边框、placeholder、focus-visible 规则。
+1. 卡片底板统一使用 `surface-card`。  
+2. 光斑动画统一使用 `BlobLayer.vue + useBlobMotion.ts`。  
+3. 光斑轨迹统一为 `transform`，禁止 `left/top` 动画。  
+4. 禁止页面内手写重复的光斑 DOM、随机逻辑、分组差异化轨迹。  
 
-- `ui-btn`
-  - 用于命令按钮基类。
-  - 变体：
-    - `ui-btn--ghost` 普通操作
-    - `ui-btn--primary` 高优先级操作（同色系提亮）
-    - `ui-btn--disabled` 禁用态
+## 语义类分工
 
-- `ui-filter-btn`
-  - 用于筛选按钮。
-  - 激活态：`is-active`（同色系提亮，不使用品牌色）
+### 卡片/面板
 
-- `ui-chip`
-  - 用于普通标签（tags）。
+- `surface-card`
+  - 统一卡片底板语义类（替代历史分叉写法）。
+  - 负责卡片玻璃材质、边框、阴影、高光与内容层级基线。
+  - 所有新增卡片必须使用该类。
 
-- `ui-badge`
-  - 用于状态型短标签（如“常用”）。
-  - 可叠加 `ui-chip--fav` 等变体。
+- `command-panel`
+  - 用于承载命令区/控制区面板行为。
+  - 与 `surface-card` 组合使用：`surface-card command-panel`。
+  - 不得自行重写一套独立光斑体系。
 
-- `ui-status`
-  - 用于卡片内状态（如“可用/开发中”）。
-  - 变体：`ui-status--ok`、`ui-status--warn`
+### 输入与交互
 
-## 使用边界
+- `ui-input`：输入框语义类（含透明背景、边框、focus-visible）。
+- `ui-btn`：按钮基类；变体：
+  - `ui-btn--ghost`
+  - `ui-btn--primary`
+  - `ui-btn--disabled`
+- `ui-filter-btn`：筛选按钮；选中态 `is-active`。
 
-- 需要 Raycast 色层与光斑时：
-  - 容器使用 `raycast-card` + `BlobLayer`
-  - 不要仅依赖 `ui-card`
+### 标签与状态
 
-- 纯玻璃小组件（按钮、标签、输入框）
-  - 统一保持 `background: transparent`
-  - 通过 `backdrop-filter + border + text contrast` 呈现
+- `ui-chip`：普通标签
+- `ui-badge`：状态短标签
+- `ui-status`：状态块；变体：
+  - `ui-status--ok`
+  - `ui-status--warn`
+
+## 光斑系统（强制抽象）
+
+- 渲染层：`src/components/BlobLayer.vue`
+- 参数层：`src/composables/useBlobMotion.ts`
+  - `createTintVars`
+  - `createBlobVars`
+  - `createCardMotionPreset`
+  - `createPanelMotionPreset`
+
+约束：
+- 页面不得直接生成光斑节点或随机轨迹。
+- 页面只传 seed/预设，不持有光斑细节逻辑。
+- 同类卡片之间不得维护分叉光斑规则。
+
+## 分层与层级
+
+- 背景动效层：`z-index: 0`
+- 内容层：`z-index: 1`
+- 统一使用 `:not(.raycast-blob-layer)` 提升内容层。
 
 ## 禁止项
 
-- 不要在页面里手写新的“按钮风格长类串”替代 `ui-btn` 系列。
-- 不要通过 `color-mix(...)` 构造玻璃主效果。
-- 不要在同类组件中混用多套圆角、边框、blur 逻辑。
+- 禁止新建与 `surface-card` 并行的卡片底板体系。
+- 禁止对单页面/单分组做光斑特化（轨迹、滤镜、可见性独立规则）。
+- 禁止通过实体纯色背景替代玻璃表达。
+- 禁止在页面组件内写“长类串式”重复样式替代语义类。

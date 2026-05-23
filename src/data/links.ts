@@ -1,6 +1,14 @@
+/**
+ * @file links 文件说明。
+ * @description 静态业务数据与数据结构校验定义。
+ */
 import type { QuickLinkItem } from '../types/link'
 import { parseOrThrow, quickLinkListSchema } from './schemas'
 
+/**
+ * defaultQuickLinks 导出定义。
+ * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
+ */
 export const defaultQuickLinks: QuickLinkItem[] = [
   {
     id: 'chatgpt',
@@ -24,6 +32,13 @@ export const defaultQuickLinks: QuickLinkItem[] = [
     favorite: true,
   },
   {
+    id: 'hongxingdl',
+    name: '红杏云',
+    url: 'https://hongxingdl.com',
+    category: 'dev',
+    favorite: true,
+  },
+  {
     id: 'google-photos',
     name: 'Google Photos',
     url: 'https://photos.google.com/',
@@ -32,4 +47,8 @@ export const defaultQuickLinks: QuickLinkItem[] = [
   },
 ]
 
+/**
+ * quickLinks 导出定义。
+ * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
+ */
 export const quickLinks = parseOrThrow('quickLinks', quickLinkListSchema, defaultQuickLinks)

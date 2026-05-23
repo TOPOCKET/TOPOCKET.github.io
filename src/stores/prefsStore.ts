@@ -1,12 +1,30 @@
+/**
+ * @file prefsStore 文件说明。
+ * @description 按业务域封装本地持久化状态读写接口。
+ */
 import { z } from 'zod'
 import type { ToolCategory } from '../types/tool'
 import { storageEngine } from '../storage/engine'
 import { storageKeys } from '../storage/keys'
 import { loadRecord, saveRecord } from '../storage/record'
+import type { StoreContract } from './store-contract'
 
+/**
+ * ThemeMode 类型定义。
+ * @remarks 该类型用于约束调用边界，变更时请检查上下游类型推断与兼容性。
+ */
 export type ThemeMode = 'system' | 'light' | 'dark'
+
+/**
+ * FilterCategory 类型定义。
+ * @remarks 该类型用于约束调用边界，变更时请检查上下游类型推断与兼容性。
+ */
 export type FilterCategory = 'all' | ToolCategory
 
+/**
+ * AppPrefsShape 接口定义。
+ * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
+ */
 export interface AppPrefsShape {
   themeMode: ThemeMode
   homeKeyword: string
@@ -60,10 +78,17 @@ const reset = (): AppPrefsShape => {
   return defaultPrefs
 }
 
+/**
+ * prefsStore 导出定义。
+ * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
+ */
 export const prefsStore = {
   load,
   save,
   reset,
   migrate,
   defaults: defaultPrefs,
+} satisfies StoreContract<AppPrefsShape> & {
+  migrate: () => AppPrefsShape | null
+  defaults: AppPrefsShape
 }

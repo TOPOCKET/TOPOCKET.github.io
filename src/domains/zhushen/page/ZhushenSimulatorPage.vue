@@ -1,25 +1,32 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import BlobLayer from '../components/BlobLayer.vue'
-import { createPanelMotionPreset } from '../composables/useBlobMotion'
+import BlobLayer from '@/components/BlobLayer.vue'
+import { createPanelMotionPreset } from '@/composables/useBlobMotion'
 import {
   builtinZhushenEquips,
   builtinZhushenJobs,
   builtinZhushenSkills,
   builtinZhushenTraits,
-} from '../data/zhushen'
-import type { AttrVector, PromotionStep, ScorePreset, SearchProgress, SearchResult, SimulationInput } from '../features/zhushen-simulator'
+} from '@/data/zhushen'
 import {
-  formatVec,
-  simulateZhushen,
+  type AttrVector,
+  type PromotionStep,
+  type ScorePreset,
+  type SearchProgress,
+  type SimulationInput,
   zhushenEquipListSchema,
   zhushenJobListSchema,
   zhushenSimulationInputSchema,
   zhushenSkillListSchema,
   zhushenTraitListSchema,
-} from '../features/zhushen-simulator'
-import { zhushenCustomStore } from '../stores/zhushenCustomStore'
+} from '@/features/zhushen-model'
+import { formatVec } from '@/features/zhushen-model'
+import { SEARCH_RUNTIME_CONFIG } from '@/config/search'
+import { zhushenCustomStore } from '@/stores/zhushenCustomStore'
+import { ZHUSHEN_ATTR_LABEL, ZHUSHEN_EQUIP_SLOT_LABEL, ZHUSHEN_TRAIT_SLOT_LABEL } from '@/domains/zhushen/model/ui-meta'
+import { runZhushenSimulation } from '@/domains/zhushen/engine/simulation'
+import { ZhushenSearchOrchestrator } from '@/domains/zhushen/orchestrator/search-orchestrator'
 
 const pageMotion = computed(() => createPanelMotionPreset('zhushen:simulator'))
 const custom = ref(zhushenCustomStore.load())
@@ -41,10 +48,10 @@ const promotions = ref<PromotionStep[]>([
 ])
 
 const searchEnabled = ref(true)
-const beamWidth = ref(1000)
-const maxTransfer = ref(5)
-const maxTierDelta = ref(3)
-const maxSkillPerStep = ref(2)
+const beamWidth = ref(SEARCH_RUNTIME_CONFIG.beamWidthDefault)
+const maxTransfer = ref(SEARCH_RUNTIME_CONFIG.maxTransferDefault)
+const maxTierDelta = ref(SEARCH_RUNTIME_CONFIG.maxTierDeltaDefault)
+const maxSkillPerStep = ref(SEARCH_RUNTIME_CONFIG.maxSkillPerStepDefault)
 const scorePreset = ref<ScorePreset>('sum')
 const searchFinalEquipIds = ref<string[]>(['sword-king', 'armor-guard'])
 const searchFinalSkillIds = ref<string[]>(['nimble'])
@@ -58,39 +65,15 @@ const errorText = ref('')
 const selectionError = ref('')
 const searchPending = ref(false)
 const searchProgress = ref<SearchProgress | null>(null)
-let searchWorker: Worker | null = null
-let searchReqId = 0
-let parallelWorkers: Worker[] = []
+const searchOrchestrator = new ZhushenSearchOrchestrator({
+  onProgress: (progress) => {
+    searchProgress.value = progress
+  },
+})
 
-const traitSlotLabel: Record<string, string> = {
-  face: '脸',
-  nose: '鼻子',
-  hair: '头发',
-  eyes: '眼睛',
-  eyebrow: '眉毛',
-  ears: '耳朵',
-  stigma: '圣痕',
-  quasi_stigma: '类圣痕',
-  learning: '学习',
-}
-const equipSlotLabel: Record<string, string> = {
-  main_hand: '主手',
-  off_hand: '副手',
-  helmet: '头盔',
-  armor: '盔甲',
-  shoes: '鞋',
-  accessory: '饰品',
-  head_fashion: '头部时装',
-  armor_fashion: '盔甲时装',
-}
-const attrLabel: Record<string, string> = {
-  str: '力量',
-  tec: '技巧',
-  agi: '敏捷',
-  con: '体质',
-  per: '感知',
-  wil: '意志',
-}
+const traitSlotLabel = ZHUSHEN_TRAIT_SLOT_LABEL
+const equipSlotLabel = ZHUSHEN_EQUIP_SLOT_LABEL
+const attrLabel = ZHUSHEN_ATTR_LABEL
 
 const traitFilter = ref('all')
 const equipFilter = ref('all')
@@ -123,6 +106,7 @@ const newEquipJson = ref(
 )
 const newSkillJson = ref('{"id":"custom-skill-1","name":"自定义技能","category":"str","stat":{"str":0,"tec":0,"agi":0,"con":0,"per":0,"wil":0}}')
 const newTraitJson = ref('{"id":"custom-trait-1","name":"自定义特性","slot":"learning","stat":{"str":0,"tec":0,"agi":0,"con":0,"per":0,"wil":0}}')
+const DEFAULT_PROMOTION_JOB_ID = 'soldier'
 
 const toggle = (arr: string[], id: string): string[] => (arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id])
 const enforceSkillMax3 = (nextIds: string[], context: string): string[] | null => {
@@ -239,138 +223,26 @@ const resetCustom = () => {
   custom.value = zhushenCustomStore.reset()
 }
 
-const addPromotion = () => promotions.value.push({ level: 1, toJobId: jobs.value[0]?.id ?? '', equipIds: [], skillIds: [] })
+const resolvePromotionJobId = (candidate?: string) => {
+  const validIds = new Set(jobs.value.map((j) => j.id))
+  if (candidate && validIds.has(candidate)) return candidate
+  if (validIds.has(DEFAULT_PROMOTION_JOB_ID)) return DEFAULT_PROMOTION_JOB_ID
+  return jobs.value[0]?.id ?? ''
+}
+
+const addPromotion = () => promotions.value.push({ level: 1, toJobId: resolvePromotionJobId(), equipIds: [], skillIds: [] })
 const removePromotion = (idx: number) => promotions.value.splice(idx, 1)
 
-const makeWorker = (): Worker => new Worker(new URL('../workers/zhushen-search.worker.ts', import.meta.url), { type: 'module' })
-
-const runSearchInWorker = (input: SimulationInput): Promise<SearchResult> =>
-  new Promise((resolve, reject) => {
-    if (!searchWorker) searchWorker = makeWorker()
-    const reqId = ++searchReqId
-    const onMessage = (
-      event: MessageEvent<{
-        id: number
-        ok: boolean
-        result?: SearchResult
-        progress?: SearchProgress
-        error?: string
-      }>,
-    ) => {
-      if (event.data.id !== reqId) return
-      if (event.data.progress) {
-        searchProgress.value = event.data.progress
-        return
-      }
-      searchWorker?.removeEventListener('message', onMessage)
-      if (event.data.ok && event.data.result) resolve(event.data.result)
-      else reject(new Error(event.data.error ?? 'worker search error'))
-    }
-    searchWorker.addEventListener('message', onMessage)
-    searchWorker.postMessage({ id: reqId, input })
-  })
-
-const runParallelSearchInWorkers = async (input: SimulationInput): Promise<SearchResult> => {
-  const jobIds = input.jobs.map((j) => j.id).filter((id) => id !== input.initialJobId)
-  const workerCount = Math.min(Math.max((navigator.hardwareConcurrency || 4) - 1, 2), 4, jobIds.length)
-  if (workerCount <= 1 || !input.search || input.search.maxTransfer <= 0 || jobIds.length === 0) return runSearchInWorker(input)
-
-  parallelWorkers.forEach((w) => w.terminate())
-  parallelWorkers = []
-
-  const tasksQueue: string[][] = jobIds.map((id) => [id])
-  if (tasksQueue.length <= 1) return runSearchInWorker(input)
-
-  const progressByShard = new Map<number, SearchProgress>()
-  const updateAggregateProgress = () => {
-    if (progressByShard.size === 0) return
-    const rows = [...progressByShard.values()]
-    const totalSteps = rows[0]?.totalSteps || 1
-    const ratio = rows.reduce((acc, p) => acc + p.step / Math.max(p.totalSteps, 1), 0) / rows.length
-    searchProgress.value = {
-      phase: rows.some((p) => p.phase === 'running') ? 'running' : 'completed',
-      step: Math.max(1, Math.round(ratio * totalSteps)),
-      totalSteps,
-      beamSize: rows.reduce((acc, p) => acc + p.beamSize, 0),
-      candidateSize: rows.reduce((acc, p) => acc + p.candidateSize, 0),
-      exploredStates: rows.reduce((acc, p) => acc + p.exploredStates, 0),
-      prunedByDominance: rows.reduce((acc, p) => acc + p.prunedByDominance, 0),
-      poolSize: rows.reduce((acc, p) => acc + p.poolSize, 0),
-      compactionCount: rows.reduce((acc, p) => acc + p.compactionCount, 0),
-      poolPeak: Math.max(...rows.map((p) => p.poolPeak)),
-      stepMs: Math.max(...rows.map((p) => p.stepMs)),
-      routeChecks: rows.reduce((acc, p) => acc + p.routeChecks, 0),
-      routePrunes: rows.reduce((acc, p) => acc + p.routePrunes, 0),
-      groupChecks: rows.reduce((acc, p) => acc + p.groupChecks, 0),
-      groupPrunes: rows.reduce((acc, p) => acc + p.groupPrunes, 0),
-    }
-  }
-
-  const settled: SearchResult[] = []
-  const runTask = (worker: Worker, shardIndex: number, firstStepJobIds: string[]): Promise<SearchResult> =>
-    new Promise((resolve, reject) => {
-      const reqId = ++searchReqId
-      const idleTimeoutMs = 180000
-      let timeout: ReturnType<typeof setTimeout> | null = null
-      const armTimeout = () => {
-        if (timeout) clearTimeout(timeout)
-        timeout = setTimeout(() => {
-          worker.removeEventListener('message', onMessage)
-          reject(new Error(`parallel worker timeout shard=${shardIndex}`))
-        }, idleTimeoutMs)
-      }
-      armTimeout()
-      const workerInput: SimulationInput = {
-        ...input,
-        search: {
-          ...input.search!,
-          firstStepJobIds,
-        },
-      }
-      const onMessage = (event: MessageEvent<{ id: number; ok: boolean; result?: SearchResult; progress?: SearchProgress; error?: string }>) => {
-        if (event.data.id !== reqId) return
-        if (event.data.progress) {
-          armTimeout()
-          progressByShard.set(shardIndex, event.data.progress)
-          updateAggregateProgress()
-          return
-        }
-        if (timeout) clearTimeout(timeout)
-        worker.removeEventListener('message', onMessage)
-        if (event.data.ok && event.data.result) resolve(event.data.result)
-        else reject(new Error(event.data.error ?? 'parallel worker error'))
-      }
-      worker.addEventListener('message', onMessage)
-      worker.postMessage({ id: reqId, input: workerInput })
-    })
-
-  const runners = Array.from({ length: workerCount }, (_, runnerId) => {
-    const worker = makeWorker()
-    parallelWorkers.push(worker)
-    return (async () => {
-      while (tasksQueue.length > 0) {
-        const next = tasksQueue.shift()
-        if (!next) break
-        const result = await runTask(worker, runnerId, next)
-        settled.push(result)
-      }
-    })()
-  })
-  await Promise.all(runners)
-  parallelWorkers.forEach((w) => w.terminate())
-  parallelWorkers = []
-
-  const topPlans = settled
-    .flatMap((x) => x.topPlans)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 20)
-    .map((p, idx) => ({ ...p, rank: idx + 1 }))
-  return {
-    topPlans,
-    exploredStates: settled.reduce((acc, x) => acc + x.exploredStates, 0),
-    prunedByDominance: settled.reduce((acc, x) => acc + x.prunedByDominance, 0),
-  }
-}
+watch(
+  jobs,
+  () => {
+    promotions.value = promotions.value.map((step) => ({
+      ...step,
+      toJobId: resolvePromotionJobId(step.toJobId),
+    }))
+  },
+  { immediate: true },
+)
 
 const calculate = async () => {
   errorText.value = ''
@@ -381,11 +253,11 @@ const calculate = async () => {
   searchProgress.value = null
   try {
     const parsed = zhushenSimulationInputSchema.parse(buildInput())
-    const sim = simulateZhushen(parsed)
+    const sim = runZhushenSimulation(parsed)
     output.value = { final: sim.final, growthAcc: sim.growthAcc, jobName: sim.currentJob.name, logs: sim.logs }
     if (parsed.search?.enabled) {
       searchPending.value = true
-      const searchResult = await runParallelSearchInWorkers(parsed)
+      const searchResult = await searchOrchestrator.run(parsed)
       searchSummary.value = { exploredStates: searchResult.exploredStates, prunedByDominance: searchResult.prunedByDominance }
       topPlans.value = searchResult.topPlans.slice(0, 10).map((x) => ({
         rank: x.rank,
@@ -401,8 +273,7 @@ const calculate = async () => {
       searchProgress.value = null
     }
   } catch (error) {
-    parallelWorkers.forEach((w) => w.terminate())
-    parallelWorkers = []
+    searchOrchestrator.dispose()
     searchPending.value = false
     searchProgress.value = null
     errorText.value = error instanceof Error ? error.message : 'unknown error'
@@ -422,6 +293,9 @@ const applyPlanToManual = (plan: { promotions: PromotionStep[] }) => {
 }
 
 calculate()
+onBeforeUnmount(() => {
+  searchOrchestrator.dispose()
+})
 </script>
 
 <template>
@@ -434,8 +308,8 @@ calculate()
       <RouterLink to="/" class="ui-btn ui-btn--ghost">返回首页</RouterLink>
     </header>
 
-    <section class="glass-panel command-panel mb-4 p-4" :style="pageMotion.tint">
-      <BlobLayer :blobs="pageMotion.blobs" variant="panel" />
+    <section class="surface-card command-panel mb-4 p-4" :style="pageMotion.tint">
+      <BlobLayer :blobs="pageMotion.blobs" />
       <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <label class="text-sm">目标等级<input v-model.number="targetLevel" type="number" min="1" max="150" class="ui-input mt-1 w-full px-2 py-1" /></label>
         <label class="text-sm">初始职业<select v-model="initialJobId" class="ui-input mt-1 w-full px-2 py-1"><option v-for="j in jobs" :key="j.id" :value="j.id">{{ j.name }} ({{ j.id }})</option></select></label>
@@ -486,7 +360,7 @@ calculate()
       </div>
     </section>
 
-    <section class="glass-panel mb-4 p-4">
+    <section class="surface-card mb-4 p-4">
       <div class="mb-2 flex items-center justify-between"><h2 class="text-base font-semibold">转职路径</h2><button class="ui-btn ui-btn--ghost" @click="addPromotion">新增</button></div>
       <div v-for="(step, idx) in promotions" :key="idx" class="mb-3 grid grid-cols-1 gap-2 border-b border-[var(--border)] pb-3 lg:grid-cols-4">
         <label class="text-xs">等级<input v-model.number="step.level" type="number" min="1" max="149" class="ui-input mt-1 w-full px-2 py-1" /></label>
@@ -521,7 +395,7 @@ calculate()
       </div>
     </section>
 
-    <section class="glass-panel mb-4 p-4">
+    <section class="surface-card mb-4 p-4">
       <h2 class="mb-2 text-base font-semibold">搜索配置</h2>
       <div class="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <label class="text-xs">启用<select v-model="searchEnabled" class="ui-input mt-1 w-full px-2 py-1"><option :value="true">true</option><option :value="false">false</option></select></label>
@@ -537,7 +411,7 @@ calculate()
       </div>
     </section>
 
-    <section class="glass-panel mb-4 p-4">
+    <section class="surface-card mb-4 p-4">
       <div class="mb-2 flex items-center justify-between"><h2 class="text-base font-semibold">本地临时添加</h2><button class="ui-btn ui-btn--ghost" @click="resetCustom">重置</button></div>
       <div class="grid grid-cols-1 gap-3 lg:grid-cols-4">
         <div><p class="mb-1 text-sm">职业 JSON</p><textarea v-model="newJobJson" rows="7" class="ui-input w-full px-2 py-1 text-xs" /><button class="ui-btn ui-btn--primary mt-1" @click="addCustomJob">保存</button></div>
@@ -566,11 +440,11 @@ calculate()
     </div>
 
     <section v-if="output" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <article class="glass-panel p-4"><h2 class="mb-2 text-base font-semibold">最终结果</h2><p class="mb-1 text-sm text-[var(--text-muted)]">当前职业：{{ output.jobName }}</p><p class="mb-2 text-sm">{{ formatVec(output.final) }}</p><p class="text-xs text-[var(--text-muted)]">成长累计：{{ formatVec(output.growthAcc) }}</p></article>
-      <article class="glass-panel p-4"><h2 class="mb-2 text-base font-semibold">转职日志</h2><p v-if="output.logs.length === 0" class="text-sm text-[var(--text-muted)]">无转职</p><ul v-else class="space-y-1 text-sm"><li v-for="item in output.logs" :key="item">{{ item }}</li></ul></article>
+      <article class="surface-card p-4"><h2 class="mb-2 text-base font-semibold">最终结果</h2><p class="mb-1 text-sm text-[var(--text-muted)]">当前职业：{{ output.jobName }}</p><p class="mb-2 text-sm">{{ formatVec(output.final) }}</p><p class="text-xs text-[var(--text-muted)]">成长累计：{{ formatVec(output.growthAcc) }}</p></article>
+      <article class="surface-card p-4"><h2 class="mb-2 text-base font-semibold">转职日志</h2><p v-if="output.logs.length === 0" class="text-sm text-[var(--text-muted)]">无转职</p><ul v-else class="space-y-1 text-sm"><li v-for="item in output.logs" :key="item">{{ item }}</li></ul></article>
     </section>
 
-    <section v-if="searchSummary" class="mt-4 glass-panel p-4">
+    <section v-if="searchSummary" class="mt-4 surface-card p-4">
       <h2 class="mb-2 text-base font-semibold">Beam Search 结果</h2>
       <p class="text-sm text-[var(--text-muted)]">
         已探索状态数: {{ searchSummary.exploredStates }} | 支配剪枝数: {{ searchSummary.prunedByDominance }}

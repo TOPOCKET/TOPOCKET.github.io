@@ -1,3 +1,7 @@
+/**
+ * @file useCheatCode 文件说明。
+ * @description 小游戏作弊码识别与作弊状态运行时控制。
+ */
 import { onBeforeUnmount, onMounted, toValue, watch, type MaybeRefOrGetter } from 'vue'
 
 interface UseCheatCodeOptions {
@@ -13,6 +17,12 @@ const isEditableTarget = (target: EventTarget | null): boolean => {
   return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable
 }
 
+/**
+ * useCheatCode：提供可复用组合式能力。
+ * @param options 可选配置项，用于控制函数行为。
+ * @return 返回页面可消费的组合式 API。
+ * @remarks 该函数属于公共导出能力，修改行为时需同步更新调用方、测试与文档。
+ */
 export const useCheatCode = (options: UseCheatCodeOptions) => {
   const normalizedCode = options.code.trim().toLowerCase()
   let buffer = ''

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import BlobLayer from '../components/BlobLayer.vue'
-import { createPanelMotionPreset } from '../composables/useBlobMotion'
-import { game2048Store } from '../stores/game2048Store'
+import BlobLayer from '@/components/BlobLayer.vue'
+import { createPanelMotionPreset } from '@/composables/useBlobMotion'
+import { game2048Store } from '@/stores/game2048Store'
 import { useRoute } from 'vue-router'
-import { useCheatCode } from '../cheats/useCheatCode'
-import { createGame2048CheatAdapter } from '../cheats/game2048Cheats'
+import { useCheatCode } from '@/cheats/useCheatCode'
+import { createGame2048CheatAdapter } from '@/cheats/game2048Cheats'
 
 const GRID_SIZE = 4
 type Board = number[][]
@@ -252,8 +252,8 @@ useCheatCode({
     </header>
 
     <section class="mb-6">
-      <article class="glass-panel command-panel p-4" :style="pageMotion.tint">
-        <BlobLayer :blobs="pageMotion.blobs" variant="panel" />
+      <article class="surface-card command-panel p-4" :style="pageMotion.tint">
+        <BlobLayer :blobs="pageMotion.blobs" />
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div class="flex flex-wrap items-center gap-3">
             <div class="ui-chip px-3 py-2">
@@ -276,8 +276,8 @@ useCheatCode({
       </article>
     </section>
 
-    <section class="glass-panel command-panel p-4" :style="boardMotion.tint">
-      <BlobLayer :blobs="boardMotion.blobs" variant="panel" />
+    <section class="surface-card command-panel p-4" :style="boardMotion.tint">
+      <BlobLayer :blobs="boardMotion.blobs" />
       <div class="game-grid">
         <div
           v-for="(value, index) in flattenedBoard"

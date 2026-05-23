@@ -1,240 +1,242 @@
 # Sopronwitta
 
-个人小工具集合网站，基于静态部署，包含工具导航、搜索筛选、提示词模板和常用链接分组页面。
+个人小工具集合站（SPA），基于 `Vue 3 + TypeScript + Vite`，面向静态部署（GitHub Pages）。
 
-## 技术栈
-
-- Vite
-- Vue 3 + TypeScript
-- Tailwind CSS
-- Vue Router（`createWebHashHistory`）
-- GitHub Pages（GitHub Actions 自动部署）
-
-## 当前功能
-
-- 首页工具导航面板
-- 工具搜索（名称/描述/标签）
-- 工具分类筛选
-- Prompts 页面：模板搜索 + 一键复制
-- Links 页面分组展示与一键打开
-- 2048 Mini（方向键/WASD，支持本地进度保存）
-- 路由元数据配置化（标题自动更新）
-- 数据 schema 运行时校验（tools/links/prompts）
-- 前端本地数据管理体系（单一存储入口 + 版本化 + 迁移）
-
-## 本地开发
+## 快速开始
 
 ```bash
 npm install
 npm run dev
 ```
 
-默认访问：`http://127.0.0.1:4173`（或 Vite 输出端口）。
-
-## 构建
+构建：
 
 ```bash
 npm run build
 ```
 
-构建产物目录：`dist/`
+## 技术栈
 
-## GitHub Pages 发布
+- Vue 3
+- TypeScript
+- Vite
+- Vue Router（`createWebHashHistory`）
+- Tailwind CSS
+- zod
 
-本项目为用户主页站点模式，目标域名：
+## 当前模块
 
-- `https://topocket.github.io/`
+- 首页工具导航（搜索 / 分类）
+- 提示词模板页（搜索 / 复制）
+- 常用链接页（分组展示）
+- 2048 Mini
+- Memory Match
+- 诸神皇冠培养模拟器（含 Worker + WASM）
 
-要求：
+## 文档体系（统一入口）
 
-1. 仓库名必须为 `topocket.github.io`
-2. Pages Source 选择 `GitHub Actions`
-3. 工作流文件使用 `.github/workflows/deploy.yml`
+为避免规则分散，项目文档统一收敛在 `docs/`：
+
+- [docs/vibeCodingCopy.md](D:/Download/lysmarinel/docs/vibeCodingCopy.md)  
+  开发规范总文档（工程、样式、动效、JSDoc、提交流程等）
+
+- [docs/ui-semantics.md](D:/Download/lysmarinel/docs/ui-semantics.md)  
+  UI 语义类与卡片/光斑最新规范（`surface-card`、`BlobLayer`、`useBlobMotion`）
+
+- [docs/storage-contract.md](D:/Download/lysmarinel/docs/storage-contract.md)  
+  本地存储契约（key、schema、默认值、写入策略、接入清单）
 
 ## 目录结构
 
 ```text
 src/
   app/                # 路由与 route-meta
+  domains/            # 业务域（页面与域内逻辑）
+  shared/             # 跨域共享门面
   components/         # 通用组件
-  composables/        # 通用逻辑（prefs/blob motion）
-  data/               # 配置数据（tools/links/prompts + schemas）
-  pages/              # 页面（Home/Prompts/Links）
-  storage/            # localStorage 基础层（prefix/key/record adapter）
-  stores/             # 按域分层 store（prefs/game2048/links）
-  styles/             # 样式分层（tokens/components）
-  types/              # TS 类型定义
+  composables/        # 通用逻辑
+  cheats/             # 作弊码能力
+  config/             # 运行时配置
+  data/               # 配置数据与 schema
+  features/           # 核心算法（含 wasm 接入）
+  workers/            # Web Worker
+  storage/            # 持久化基础层
+  stores/             # 业务域 store
+  styles/             # tokens + components
+  types/              # 类型定义
+docs/                 # 项目规范与契约文档
+public/wasm/          # wasm 发布产物
+wasm/zhushen-core/    # wasm Rust 源码
 ```
 
-## 前端-only 数据管理规范
+## 部署说明（GitHub Pages）
 
-### 1) 单一存储入口
+- 仓库名：`topocket.github.io`
+- Pages Source：`GitHub Actions`
+- 工作流：`.github/workflows/deploy.yml`
 
-所有本地持久化必须通过：
+## 优化路线（持续更新）
 
-- `src/storage/engine.ts`
-- `src/storage/record.ts`
-- `src/stores/*`
+说明：本模块用于记录“已确认的架构升级路径”。后续每次实施优化后，必须同步更新本模块状态与日期。
 
-禁止在页面/组件里直接调用 `localStorage.setItem/getItem`。
+### 路线 4：测试基线补齐（中优先级）
 
-### 2) 命名空间 + 版本化
+- 目标：为高风险模块建立最小可回归测试网。
+- 方案：
+  - 优先覆盖 `domains/zhushen/engine/simulator-core.ts`、`storage/record.ts`、`stores/*`。
+  - 增加 schema 校验、持久化读写、关键路径搜索结果稳定性测试。
+- 收益：重构与性能优化可控，减少线上回归风险。
+- 状态：`planned`
 
-统一前缀：`sopronwitta:`
+### 路线 5：文档索引与变更映射（中优先级）
 
-当前 key：
+- 目标：让文档更新路径可追踪、可检查。
+- 方案：
+  - 在 `docs/` 新增 `doc-index.md`，维护“模块 -> 文档 -> 更新触发条件”映射。
+  - 与 `docs/vibeCodingCopy.md` 的文档同步约束联动执行。
+- 收益：降低文档漂移，提升协作可见性。
+- 状态：`planned`
 
-- `sopronwitta:prefs:v1`
-- `sopronwitta:tool:2048:v1`
-- `sopronwitta:links:v1`
+### 路线 6：全仓 Domain-First 架构重构（最高优先级）
 
-### 3) Schema 校验
+- 目标：从“技术层分目录”升级为“业务域分目录”，以长期可扩展性和演进效率为第一目标。
+- 重构原则：
+  - 领域优先：代码按业务域聚合，不按技术类型聚合。
+  - 边界清晰：`domains/*` 只暴露对外门面，内部实现不跨域直接引用。
+  - 共享最小化：可共享的才进入 `shared/*`，避免“伪共享”。
+  - 一次定型：允许大迁移，避免长期双轨结构并存。
 
-每条记录读取时必须先过 zod 校验，校验失败回退默认值，保证运行时稳定。
+#### 目标目录树（重构完成态）
 
-### 4) Store 分层
-
-按业务域拆分 store，不按页面拆分。每个 store 必须暴露：
-
-- `load`
-- `save`
-- `reset`
-- `migrate`
-
-### 5) 数据迁移
-
-新版本通过 `migrate(vN -> vN+1)` 迁移，不直接覆盖旧结构。
-
-### 6) 写入策略
-
-高频状态（如 2048 棋盘）默认使用节流写入（当前 300ms），并在页面卸载前强制保存一次。
-
-### 7) 作弊功能策略
-
-- 统一通过通用引擎 `src/cheats/useCheatCode.ts` 监听和触发
-- 统一通过 `CheatRuntime` 管理本局作弊状态
-- 默认不持久化（仅本局生效）；若需要持久化，必须显式声明 `persistCheats: true`
-
-### 8) Contract 文档
-
-新增/修改本地存储记录时，必须同步更新：
-
-- `storage-contract.md`
-
-## 诸神皇冠培养模拟器：算法与性能
-
-### 目标
-
-- 在前端静态站点（GitHub Pages）中，完成高等级、多转职路线搜索
-- 保证 UI 不阻塞，并给出可解释的 Top 路线结果
-
-### 核心设计
-
-1. 搜索模型：按“转职阶段”Beam Search（不是按每级展开）
-2. 状态存储：SoA（Struct of Arrays）+ TypedArray 状态池
-3. 候选处理：先判后入池（先 route/group 剪枝，通过后才分配状态索引）
-4. 成长计算：区间累计 + 增量推进，避免逐级重复重算
-5. 路径恢复：`parentIndex` 回溯，不在状态中存完整历史
-5. 线程模型：Web Worker 运行搜索，主线程仅渲染与交互
-6. 并行模型：动态任务队列 + 多 Worker（空闲 worker 自动领取下一任务），结果合并
-7. WASM 热路径：候选评分 + 剪枝比较批处理已迁移到 Rust WebAssembly（worker 内优先调用 wasm，失败自动回退 JS）
-
-### 状态结构（SoA）
-
-搜索状态池位于 `src/features/zhushen-simulator.ts` 的 `SoAStatePool`，主要列：
-
-- `levels: Uint16Array`
-- `jobIndexes: Uint16Array`
-- `transferCounts: Uint8Array`
-- `visitedMasks: BigUint64Array`（最多支持 64 职业）
-- `parentIndexes: Int32Array`
-- `promoLevels/promoJobIndexes/promoEquipIndexes/promoSkillIndexes`
-- `growth: Float32Array`（6 维连续存储）
-
-这样可显著减少对象分配和 GC 压力，提升缓存局部性。
-
-稳定性说明（2026-05）：
-- 曾尝试状态索引复用（free-list），在复杂前沿剪枝下出现引用一致性风险，可能导致错误最优解。
-- 当前稳定版本已回退到“索引单调增长 + 周期压缩”，优先保证结果正确。
-
-### 关键剪枝与筛选
-
-1. 基础支配剪枝：同 `(level, job, transferCount)` 分组，劣势成长状态淘汰
-2. route frontier 剪枝：同职业序列按“最后转职等级分层 skyline”提前淘汰劣势状态
-3. 前沿索引增强：在 skyline/layer 上增加主属性分桶（STR/AGI/CON 区间），优先同桶比较，再回退全层比较
-4. bucket 压缩：先用量化签名（`quantSig`）做短名单，再做精确支配比较
-5. Top-K 保留：用最小堆替换全量 sort，每轮只保留前 `beamWidth`
-6. 结果后处理：同职业序列下，若方案 A 每步转职等级不晚于 B 且最终属性不低，则剔除 B（最终一致性兜底）
-
-### 进度与响应性
-
-- Worker 内支持分块让步（`yieldEvery` + `setTimeout(0)`）
-- 主线程显示实时进度（step/total、beam、candidate、explored、pruned、poolSize、compactionCount）
-- 新增观测指标：`poolPeak`、`stepMs`、`routePrunes/routeChecks`、`groupPrunes/groupChecks`
-- 并行 Worker 的进度会聚合后展示
-
-### Rust WASM 核心
-
-- Rust 代码：`wasm/zhushen-core/`
-- WASM 产物：`public/wasm/zhushen_core.wasm`
-- 当前迁移范围：
-  - Top-K 前候选评分批处理（`score_batch`）
-  - 剪枝比较批处理（`prune_flags`，用于 group 短名单和批量反向淘汰）
-  - route frontier 批量比较（`route_prune_flags`）
-  - 扩展生成过滤批处理（`combo_pass_flags`，用于候选枚举阶段的组合可行性筛选）
-- 接入位置：`src/features/zhushen-wasm.ts` + `src/workers/zhushen-search.worker.ts`
-- 失败策略：WASM 加载失败自动回退到 JS 评分逻辑
-- 阈值策略：仅在大批量比较时启用 wasm（避免小批量下 FFI 开销反噬）
-- 部署约束：GitHub Pages 环境不使用 `wasm threads`，当前方案仅使用单线程 wasm + SIMD
-
-基准（本机，Node 本地脚本 `scripts/benchmark-wasm-route.cjs`）：
-
-- `route_prune_flags N=20000`: JS `~0.91ms`，WASM `~2.38ms`，结果一致 `same=true`
-- 结论：中小批量场景 JS 更快，WASM 仅用于更大批量（当前阈值：route `>=256`、group `>=128`）
-
-#### 最新迁移进度
-
-- 已完成：
-  - `score_batch`（评分批处理）
-  - `prune_flags`（group 剪枝比较批处理）
-  - `route_prune_flags`（route frontier 主循环比较批处理）
-  - `combo_pass_flags`（扩展生成阶段的组合过滤）
-- 已启用 SIMD 编译（`target-feature=+simd128`）
-- 当前策略：
-  - 默认优先 wasm，但仅在达到阈值时启用批处理接口
-  - 小批量保持 JS 路径以避免调用开销
-
-重新编译命令（PowerShell，含 SIMD）：
-
-```powershell
-$env:USERPROFILE\.cargo\bin\rustup.exe target add wasm32-unknown-unknown
-$env:RUSTFLAGS='-C target-feature=+simd128'
-$env:USERPROFILE\.cargo\bin\cargo.exe build --release --target wasm32-unknown-unknown --manifest-path wasm/zhushen-core/Cargo.toml
-Copy-Item wasm\zhushen-core\target\wasm32-unknown-unknown\release\zhushen_core.wasm public\wasm\zhushen_core.wasm -Force
+```text
+src/
+  app/                         # 应用装配层（main/router/route meta）
+  domains/
+    home/                      # 首页域（搜索、筛选、工具卡列表）
+      page/
+      components/
+      model/
+      services/
+      index.ts
+    prompts/                   # 提示词域
+      page/
+      model/
+      services/
+      index.ts
+    links/                     # 常用链接域
+      page/
+      model/
+      services/
+      index.ts
+    games/
+      game-2048/               # 2048 域
+        page/
+        model/
+        services/
+        cheats/
+        index.ts
+      memory-match/            # 记忆翻牌域
+        page/
+        model/
+        services/
+        index.ts
+    zhushen/                   # 诸神域（核心复杂域）
+      page/
+      model/                   # 类型/schema/输入输出契约
+      engine/                  # simulate/search 主流程
+      pruning/                 # 剪枝策略
+      state-pool/              # SoA 状态池
+      wasm/
+      worker/
+      orchestrator/            # worker 编排与并行调度
+      index.ts
+  shared/
+    ui/                        # 可复用 UI 组件（BlobLayer、通用控件）
+    style/                     # tokens/components 样式
+    persistence/               # storage engine/keys/record + store contract
+    schema/                    # 跨域通用 schema 工具
+    types/                     # 跨域通用类型
+    utils/                     # 纯工具函数
 ```
 
-### 复杂度直觉
+#### 分阶段实施计划（详细）
 
-- 决策层数从“目标等级层数”降为“最大转职次数层数”
-- 每层通过剪枝和 Top-K 控制状态规模
-- 并行 worker 可进一步利用多核 CPU
+1. 阶段 A：建立骨架与别名（无行为变更）
+   - 新建 `domains/*` 与 `shared/*` 目录骨架。
+   - 配置路径别名（如 `@domains/*`、`@shared/*`）。
+   - 先迁移 `styles`、`BlobLayer`、`storage contract` 到 `shared`。
+   - 状态：`completed`
 
-### 当前已知约束
+2. 阶段 B：逐域搬迁页面与数据（低风险）
+   - 依次迁移 `home/prompts/links/games` 到 `domains`。
+   - 每个域建立 `index.ts` 门面导出，页面只引用门面。
+   - 保持路由路径不变，仅改 import。
+   - 状态：`completed`（页面实体已迁移到 `src/domains/*/page`，`src/pages` 已删除）
 
-1. `visitedMasks` 使用 `BigUint64Array`，当前上限是 64 职业
-2. 并行分片策略当前按首转职业均分，属于通用策略，未做数据驱动负载均衡
-3. 量化签名主要用于减少比较次数，不改变正确性；最终仍保留精确支配判定
-4. 内存峰值主要由单步候选爆发引起；当前通过流式剪枝与状态池压缩控制峰值
+3. 阶段 C：诸神域深拆（高复杂）
+   - 拆分 `zhushen`：`model/engine/pruning/state-pool/wasm/worker/orchestrator`。
+   - 页面只保留状态组装与展示，不再内含调度逻辑。
+   - 状态：`in_progress`
 
-### 下一步优化建议（当前稳定基线）
+4. 阶段 D：收口与删旧
+   - 删除旧 `features/pages/stores/storage/components` 中已迁移文件。
+   - 全量替换为 `domains/*` 与 `shared/*` 引用。
+   - 状态：`planned`
 
-1. 高优先级：分桶邻域比较
-   - 现状：同桶优先，仍会回退全层
-   - 建议：引入“邻域桶”策略（相邻桶）减少全层回退比例
+5. 阶段 E：测试与文档收敛
+   - 补齐高风险域测试（zhushen + persistence）。
+   - 更新 `docs/*` 与 `README` 目录说明，移除历史结构描述。
+   - 状态：`planned`
 
-2. 中优先级：动态参数自适应
-   - 基于 `stepMs` 和命中率动态调整 `beamWidth / yieldEvery / workerCount`
+#### 完成判定标准（Done Criteria）
 
-3. 中长期：WASM 核心继续迁移
-   - 已完成：`score_batch`、`prune_flags`、`route_prune_flags`、`combo_pass_flags` 迁移，支持 SIMD 编译
-   - 下一步：将扩展生成后的候选构建与更多前沿维护逻辑继续下沉到 wasm（保持 GitHub Pages 单线程约束）
+- `src/pages`、`src/features`、`src/stores`、`src/storage`、`src/components` 中业务代码迁移完毕并删除旧实现。
+- 所有业务 import 经由 `domains/*` 或 `shared/*`。
+- 构建通过、关键页面功能回归通过。
+- 文档体系（README + docs）完全反映新结构。
+
+#### 风险与控制
+
+- 风险：大范围路径迁移导致短期回归与冲突增多。
+- 控制：
+  - 分阶段提交，每阶段可独立回滚。
+  - 每阶段结束强制执行 `npm run build`。
+  - 关键域优先补测试后再删旧代码。
+
+- 本次执行（2026-05）：
+  - 已新增 `src/domains/*` 门面层与 `src/shared/*` 门面层骨架。
+  - 已配置并启用路径别名：`@app/*`、`@domains/*`、`@shared/*`。
+  - 路由层 `route-meta.ts` 已改为通过 `@domains/*` 引用页面门面。
+  - 已新增 `shared/persistence` 与 `shared/ui` 门面导出。
+  - 已完成页面迁移：`src/pages/*` -> `src/domains/*/page/*`，并清理旧页面路径引用。
+  - 阶段 C 已启动并完成首批拆分：
+    - 新增 `src/domains/zhushen/model/ui-meta.ts`，集中管理页面语义标签常量。
+    - 新增 `src/domains/zhushen/engine/simulation.ts`，页面通过域引擎门面调用模拟计算。
+    - 新增 `src/domains/zhushen/orchestrator/search-orchestrator.ts`，并行 Worker 编排从页面剥离。
+    - 新增 `src/domains/zhushen/worker/*`，搜索 Worker 与消息契约迁入域内目录。
+    - `ZhushenSimulatorPage.vue` 已移除 Worker 调度细节，仅保留输入组装、状态管理、展示与交互。
+  - 阶段 C 第二批已完成：
+    - 新增 `src/domains/zhushen/state-pool/soa-state-pool.ts`，承接 SoA 状态池与压缩逻辑。
+    - 新增 `src/domains/zhushen/pruning/search-pruning.ts`，承接量化分桶、路线哈希与时序支配过滤逻辑。
+    - `src/domains/zhushen/engine/simulator-core.ts` 已组合 `pruning/state-pool` 模块，向“流程编排层”收敛。
+  - 阶段 C 第三批已完成：
+    - 新增 `src/domains/zhushen/engine/simulator-core.ts`，承接 `simulateZhushen/searchZhushenPlans` 主体编排实现。
+    - `src/domains/zhushen/worker/zhushen-search.worker.ts` 已改为直接调用 domain engine，不再依赖 `features` 层。
+  - 阶段 C 收口已完成：
+    - 已清理项目内对 `src/features/zhushen-simulator.ts` 的剩余引用。
+    - 已删除 `src/features/zhushen-simulator.ts` 兼容层，统一改由 `domains/zhushen/engine/*` 提供能力。
+- 状态：`in_progress`
+
+## 已完成优化记录
+
+### 路线 1：诸神模拟器核心拆层（2026-05）
+
+- 新增 `src/features/zhushen-model.ts`，承接模型类型、向量工具与 zod schema。
+- 页面、worker、数据层、store 的类型与 schema 引用迁移到 `zhushen-model.ts`。
+- 算法主流程入口已下沉到 `src/domains/zhushen/engine/simulator-core.ts`。
+
+### 路线 3：Store 契约统一（2026-05）
+
+- 新增统一契约：`src/stores/store-contract.ts`。
+- `linksStore / game2048Store / prefsStore / zhushenCustomStore` 全部接入 `StoreContract`（`satisfies` 约束）。
+- Store 基础能力边界统一为 `load/save/reset`，并保留各域扩展字段。

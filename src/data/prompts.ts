@@ -1,3 +1,7 @@
+/**
+ * @file prompts 文件说明。
+ * @description 静态业务数据与数据结构校验定义。
+ */
 import type { PromptTemplateItem } from '../types/prompt'
 import { parseOrThrow, promptListSchema } from './schemas'
 
@@ -26,25 +30,11 @@ const rawPrompts: PromptTemplateItem[] = [
         '    }\n' +
         '  }\n' +
         '}',
-  },
-  {
-    id: 'playwright',
-    title: '网站测试',
-    purpose: '辅助ai进行网站测试',
-    placeholders: ['MCP'],
-    content: '{\n' +
-        '  "mcpServers": {\n' +
-        '    "playwright": {\n' +
-        '      "command": "npx.cmd",\n' +
-        '      "args": [\n' +
-        '        "-y",\n' +
-        '        "@playwright/mcp@latest",\n' +
-        '        "."\n' +
-        '      ]\n' +
-        '    }\n' +
-        '  }\n' +
-        '}',
   }
 ]
 
+/**
+ * prompts 导出定义。
+ * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
+ */
 export const prompts = parseOrThrow('prompts', promptListSchema, rawPrompts)

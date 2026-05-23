@@ -1,3 +1,7 @@
+/**
+ * @file useAppPrefs 文件说明。
+ * @description 组合式复用逻辑与页面共享状态访问能力。
+ */
 import { computed, ref, watch } from 'vue'
 import { prefsStore, type FilterCategory, type ThemeMode } from '../stores/prefsStore'
 
@@ -16,6 +20,11 @@ const pushRecentTool = (toolId: string) => {
   prefs.value.recentTools = next
 }
 
+/**
+ * useAppPrefs：提供可复用组合式能力。
+ * @return 返回页面可消费的组合式 API。
+ * @remarks 该函数属于公共导出能力，修改行为时需同步更新调用方、测试与文档。
+ */
 export const useAppPrefs = () => {
   return {
     themeMode: computed({

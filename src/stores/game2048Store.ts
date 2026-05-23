@@ -1,6 +1,11 @@
+/**
+ * @file game2048Store 文件说明。
+ * @description 按业务域封装本地持久化状态读写接口。
+ */
 import { z } from 'zod'
 import { storageKeys } from '../storage/keys'
 import { loadRecord, saveRecord } from '../storage/record'
+import type { StoreContract } from './store-contract'
 
 const GRID_SIZE = 4
 
@@ -17,6 +22,10 @@ const game2048Schema = z.object({
   gameOver: z.boolean(),
 })
 
+/**
+ * Game2048State 类型定义。
+ * @remarks 该类型用于约束调用边界，变更时请检查上下游类型推断与兼容性。
+ */
 export type Game2048State = z.infer<typeof game2048Schema>
 
 const createEmptyBoard = () =>
@@ -30,11 +39,8 @@ const defaults: Game2048State = {
   gameOver: false,
 }
 
-const migrate = (): Game2048State | null => null
-
 const load = (): Game2048State => {
-  const fromV1 = loadRecord(storageKeys.game2048V1, game2048Schema, defaults)
-  return migrate() ?? fromV1
+  return loadRecord(storageKeys.game2048V1, game2048Schema, defaults)
 }
 
 const save = (value: Game2048State) => {
@@ -58,12 +64,19 @@ const createThrottleSave = (waitMs = 300) => {
   }
 }
 
+/**
+ * game2048Store 导出定义。
+ * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
+ */
 export const game2048Store = {
   load,
   save,
   reset,
-  migrate,
   createThrottleSave,
   defaults,
   createEmptyBoard,
+} satisfies StoreContract<Game2048State> & {
+  createThrottleSave: (waitMs?: number) => (value: Game2048State) => void
+  defaults: Game2048State
+  createEmptyBoard: () => number[][]
 }

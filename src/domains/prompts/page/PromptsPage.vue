@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import BlobLayer from '../components/BlobLayer.vue'
-import { prompts } from '../data/prompts'
-import { createPanelMotionPreset } from '../composables/useBlobMotion'
-import { useInputShortcut } from '../composables/useInputShortcut'
+import BlobLayer from '@/components/BlobLayer.vue'
+import { prompts } from '@/data/prompts'
+import { createPanelMotionPreset } from '@/composables/useBlobMotion'
+import { useInputShortcut } from '@/composables/useInputShortcut'
 
 const keyword = ref('')
 const copiedId = ref<string | null>(null)
@@ -53,8 +53,8 @@ useInputShortcut({
       <RouterLink to="/" class="ui-btn ui-btn--ghost">返回首页</RouterLink>
     </header>
 
-    <section class="glass-panel command-panel mb-6 p-4" :style="pageMotion.tint">
-      <BlobLayer :blobs="pageMotion.blobs" variant="panel" />
+    <section class="surface-card command-panel mb-6 p-4" :style="pageMotion.tint">
+      <BlobLayer :blobs="pageMotion.blobs" />
       <label class="block">
         <span class="mb-2 block text-sm text-[var(--text-muted)]">搜索模板</span>
         <input
@@ -75,10 +75,10 @@ useInputShortcut({
       <article
         v-for="item in filteredPrompts"
         :key="item.id"
-        class="glass-panel command-panel p-4"
+        class="surface-card command-panel p-4"
         :style="item.motion.tint"
       >
-        <BlobLayer :blobs="item.motion.blobs" variant="panel" />
+        <BlobLayer :blobs="item.motion.blobs" />
         <div class="mb-2 flex items-start justify-between gap-3">
           <div>
             <h2 class="text-lg font-semibold text-[var(--text-primary)]">{{ item.title }}</h2>

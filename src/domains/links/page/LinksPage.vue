@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
-import BlobLayer from '../components/BlobLayer.vue'
-import type { QuickLinkItem } from '../types/link'
-import { createPanelMotionPreset } from '../composables/useBlobMotion'
-import { linksStore } from '../stores/linksStore'
+import BlobLayer from '@/components/BlobLayer.vue'
+import type { QuickLinkItem } from '@/types/link'
+import { createPanelMotionPreset } from '@/composables/useBlobMotion'
+import { linksStore } from '@/stores/linksStore'
 
 const categoryTitleMap: Record<string, string> = {
   ai: 'AI',
@@ -54,10 +54,10 @@ const groupedLinks = computed(() => {
       <article
         v-for="group in groupedLinks"
         :key="group.key"
-        class="raycast-card link-group p-4"
+        class="surface-card p-4"
         :style="group.motion.tint"
       >
-        <BlobLayer :blobs="group.motion.blobs" variant="panel" />
+        <BlobLayer :blobs="group.motion.blobs" />
         <h2 class="mb-3 text-lg font-semibold text-[var(--text-primary)]">{{ group.title }}</h2>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <a

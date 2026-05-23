@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import CategoryFilter from '../components/CategoryFilter.vue'
-import SearchBox from '../components/SearchBox.vue'
-import ToolCard from '../components/ToolCard.vue'
-import BlobLayer from '../components/BlobLayer.vue'
-import { tools } from '../data/tools'
-import type { ToolCategory, ToolItem } from '../types/tool'
-import { createPanelMotionPreset } from '../composables/useBlobMotion'
-import { useAppPrefs } from '../composables/useAppPrefs'
-import { useInputShortcut } from '../composables/useInputShortcut'
+import CategoryFilter from '@/components/CategoryFilter.vue'
+import SearchBox from '@/components/SearchBox.vue'
+import ToolCard from '@/components/ToolCard.vue'
+import BlobLayer from '@/components/BlobLayer.vue'
+import { tools } from '@/data/tools'
+import type { ToolCategory, ToolItem } from '@/types/tool'
+import { createPanelMotionPreset } from '@/composables/useBlobMotion'
+import { useAppPrefs } from '@/composables/useAppPrefs'
+import { useInputShortcut } from '@/composables/useInputShortcut'
 
 const { homeKeyword, homeCategory, pushRecentTool } = useAppPrefs()
 const keyword = ref(homeKeyword.value)
@@ -77,8 +77,8 @@ useInputShortcut({
       </div>
     </header>
 
-    <section class="glass-panel command-panel mb-6 grid gap-4 p-4 sm:grid-cols-2" :style="commandPanelMotion.tint">
-      <BlobLayer :blobs="commandPanelMotion.blobs" variant="panel" />
+    <section class="surface-card command-panel mb-6 grid gap-4 p-4 sm:grid-cols-2" :style="commandPanelMotion.tint">
+      <BlobLayer :blobs="commandPanelMotion.blobs" />
       <div>
         <SearchBox v-model="keyword" />
       </div>
