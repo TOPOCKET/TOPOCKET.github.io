@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import BlobLayer from '@/components/BlobLayer.vue'
-import { createPanelMotionPreset } from '@/composables/useBlobMotion'
-import { game2048Store } from '@/stores/game2048Store'
+import { BlobLayer } from '@/shared/ui'
+import { createPanelMotionPreset } from '@/shared/ui/composables/useBlobMotion'
+import { game2048Store } from '@/domains/games/game-2048/services/game2048-store'
 import { useRoute } from 'vue-router'
 import { useCheatCode } from '@/cheats/useCheatCode'
 import { createGame2048CheatAdapter } from '@/cheats/game2048Cheats'

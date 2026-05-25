@@ -53,15 +53,9 @@ src/
   app/                # 路由与 route-meta
   domains/            # 业务域（页面与域内逻辑）
   shared/             # 跨域共享门面
-  components/         # 通用组件
-  composables/        # 通用逻辑
   cheats/             # 作弊码能力
   config/             # 运行时配置
   data/               # 配置数据与 schema
-  features/           # 核心算法（含 wasm 接入）
-  workers/            # Web Worker
-  storage/            # 持久化基础层
-  stores/             # 业务域 store
   styles/             # tokens + components
   types/              # 类型定义
 docs/                 # 项目规范与契约文档
@@ -83,10 +77,10 @@ wasm/zhushen-core/    # wasm Rust 源码
 
 - 目标：为高风险模块建立最小可回归测试网。
 - 方案：
-  - 优先覆盖 `domains/zhushen/engine/simulator-core.ts`、`storage/record.ts`、`stores/*`。
+  - 优先覆盖 `domains/zhushen/engine/simulation.ts`、`domains/zhushen/engine/simulator-core.ts`、`shared/persistence/record.ts`。
   - 增加 schema 校验、持久化读写、关键路径搜索结果稳定性测试。
 - 收益：重构与性能优化可控，减少线上回归风险。
-- 状态：`planned`
+- 状态：`completed`
 
 ### 路线 5：文档索引与变更映射（中优先级）
 
@@ -98,7 +92,7 @@ wasm/zhushen-core/    # wasm Rust 源码
 - 状态：`planned`
 
 ### 路线 6：全仓 Domain-First 架构重构（最高优先级）
-
+    
 - 目标：从“技术层分目录”升级为“业务域分目录”，以长期可扩展性和演进效率为第一目标。
 - 重构原则：
   - 领域优先：代码按业务域聚合，不按技术类型聚合。
@@ -176,17 +170,17 @@ src/
 3. 阶段 C：诸神域深拆（高复杂）
    - 拆分 `zhushen`：`model/engine/pruning/state-pool/wasm/worker/orchestrator`。
    - 页面只保留状态组装与展示，不再内含调度逻辑。
-   - 状态：`in_progress`
+   - 状态：`completed`
 
 4. 阶段 D：收口与删旧
    - 删除旧 `features/pages/stores/storage/components` 中已迁移文件。
    - 全量替换为 `domains/*` 与 `shared/*` 引用。
-   - 状态：`planned`
+   - 状态：`completed`
 
 5. 阶段 E：测试与文档收敛
-   - 补齐高风险域测试（zhushen + persistence）。
-   - 更新 `docs/*` 与 `README` 目录说明，移除历史结构描述。
-   - 状态：`planned`
+  - 补齐高风险域测试（zhushen + persistence）。
+  - 更新 `docs/*` 与 `README` 目录说明，移除历史结构描述。
+   - 状态：`completed`
 
 #### 完成判定标准（Done Criteria）
 
@@ -225,18 +219,35 @@ src/
   - 阶段 C 收口已完成：
     - 已清理项目内对 `src/features/zhushen-simulator.ts` 的剩余引用。
     - 已删除 `src/features/zhushen-simulator.ts` 兼容层，统一改由 `domains/zhushen/engine/*` 提供能力。
-- 状态：`in_progress`
+  - 阶段 D 首批已完成：
+    - `src/features/zhushen-model.ts`、`src/features/zhushen-wasm.ts` 已迁移到 `src/domains/zhushen/model|wasm` 并删除旧实现。
+    - `src/stores/*` 已迁移到各域 `services/*`（`home/links/game-2048/zhushen`）并删除旧实现。
+    - `src/storage/*` 已迁移到 `src/shared/persistence/*` 并删除旧实现。
+    - `src/components/*` 已迁移到 `src/shared/ui/components/*` 并删除旧实现。
+    - `src/composables/*` 已按职责拆分迁移（`home` 域下沉到 `src/domains/home/composables/*`，UI 公共能力迁移到 `src/shared/ui/composables/*`）并删除旧实现。
+    - 空目录 `src/workers` 已删除（Worker 实现已在 `src/domains/zhushen/worker/*`）。
+    - 业务代码中对 `@/features`、`@/stores`、`@/storage` 的直接引用已清理，统一改为 `@domains/*` 与 `@shared/*`。
+    - 业务代码中对 `@/components/*` 的直接引用已清理，统一改为 `@shared/ui` 门面导入。
+    - 业务代码中对 `@/composables/*` 的直接引用已清理，统一改为域内或 `@shared/ui/composables/*` 导入。
+    - 已执行 `npm run build`，构建通过。
+  - 阶段 E 已完成：
+    - 新增测试框架与命令：`vitest`、`npm test`。
+    - 新增 `src/shared/persistence/record.test.ts`，覆盖 fallback、合法读写、异常 JSON、schema 校验失败回退。
+    - 新增 `src/domains/zhushen/engine/simulation.test.ts`，覆盖基础模拟、转职条件失败、忽略条件转职。
+    - 已更新 `docs/storage-contract.md`、`docs/ui-semantics.md`、`docs/vibeCodingCopy.md` 与 README 目录结构到 Domain-First 现状。
+    - 已执行 `npm test` 与 `npm run build`，全部通过。
+- 状态：`completed`
 
 ## 已完成优化记录
 
 ### 路线 1：诸神模拟器核心拆层（2026-05）
 
-- 新增 `src/features/zhushen-model.ts`，承接模型类型、向量工具与 zod schema。
-- 页面、worker、数据层、store 的类型与 schema 引用迁移到 `zhushen-model.ts`。
+- 新增 `src/domains/zhushen/model/zhushen-model.ts`，承接模型类型、向量工具与 zod schema。
+- 页面、worker、数据层、store 的类型与 schema 引用迁移到 `domains/zhushen/model` 门面。
 - 算法主流程入口已下沉到 `src/domains/zhushen/engine/simulator-core.ts`。
 
 ### 路线 3：Store 契约统一（2026-05）
 
-- 新增统一契约：`src/stores/store-contract.ts`。
+- 新增统一契约：`src/shared/persistence/store-contract.ts`。
 - `linksStore / game2048Store / prefsStore / zhushenCustomStore` 全部接入 `StoreContract`（`satisfies` 约束）。
 - Store 基础能力边界统一为 `load/save/reset`，并保留各域扩展字段。

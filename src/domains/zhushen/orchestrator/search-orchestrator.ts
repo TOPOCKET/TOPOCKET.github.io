@@ -3,7 +3,7 @@
  * @description 诸神搜索的 Worker 编排与并行调度。
  */
 import { SEARCH_RUNTIME_CONFIG } from '@/config/search'
-import type { SearchProgress, SearchResult, SimulationInput } from '@/features/zhushen-model'
+import type { SearchProgress, SearchResult, SimulationInput } from '@/domains/zhushen/model/zhushen-model'
 import type { ZhushenSearchWorkerResponse } from '../worker/search-worker-contract'
 
 /**

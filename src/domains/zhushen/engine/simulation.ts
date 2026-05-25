@@ -2,7 +2,7 @@
  * @file simulation 文件说明。
  * @description 诸神模拟器领域计算门面，隔离页面与底层算法实现。
  */
-import type { SimulationInput, SimulationResult } from '@/features/zhushen-model'
+import type { SimulationInput, SimulationResult } from '@/domains/zhushen/model/zhushen-model'
 import { simulateZhushen } from './simulator-core'
 
 /**

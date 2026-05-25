@@ -3,7 +3,7 @@
  * @description zhushen 领域门面导出。
  */
 export { default as ZhushenSimulatorPage } from './page/ZhushenSimulatorPage.vue'
-export * from '../../features/zhushen-model'
-export { formatVec } from '../../features/zhushen-model'
+export * from './model/zhushen-model'
+export { loadZhushenWasmCore } from './wasm/zhushen-wasm'
 export { runZhushenSimulation } from './engine/simulation'
 export { ZhushenSearchOrchestrator } from './orchestrator/search-orchestrator'

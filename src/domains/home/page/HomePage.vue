@@ -1,14 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import CategoryFilter from '@/components/CategoryFilter.vue'
-import SearchBox from '@/components/SearchBox.vue'
-import ToolCard from '@/components/ToolCard.vue'
-import BlobLayer from '@/components/BlobLayer.vue'
+import { BlobLayer, CategoryFilter, SearchBox, ToolCard } from '@/shared/ui'
 import { tools } from '@/data/tools'
 import type { ToolCategory, ToolItem } from '@/types/tool'
-import { createPanelMotionPreset } from '@/composables/useBlobMotion'
-import { useAppPrefs } from '@/composables/useAppPrefs'
-import { useInputShortcut } from '@/composables/useInputShortcut'
+import { createPanelMotionPreset } from '@/shared/ui/composables/useBlobMotion'
+import { useAppPrefs } from '@/domains/home/composables/useAppPrefs'
+import { useInputShortcut } from '@/shared/ui/composables/useInputShortcut'
 
 const { homeKeyword, homeCategory, pushRecentTool } = useAppPrefs()
 const keyword = ref(homeKeyword.value)

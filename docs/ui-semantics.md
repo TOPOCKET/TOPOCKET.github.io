@@ -44,8 +44,8 @@
 
 ## 光斑系统（强制抽象）
 
-- 渲染层：`src/components/BlobLayer.vue`
-- 参数层：`src/composables/useBlobMotion.ts`
+- 渲染层：`src/shared/ui/components/BlobLayer.vue`
+- 参数层：`src/shared/ui/composables/useBlobMotion.ts`
   - `createTintVars`
   - `createBlobVars`
   - `createCardMotionPreset`

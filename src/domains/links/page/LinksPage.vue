@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
-import BlobLayer from '@/components/BlobLayer.vue'
+import { BlobLayer } from '@/shared/ui'
 import type { QuickLinkItem } from '@/types/link'
-import { createPanelMotionPreset } from '@/composables/useBlobMotion'
-import { linksStore } from '@/stores/linksStore'
+import { createPanelMotionPreset } from '@/shared/ui/composables/useBlobMotion'
+import { linksStore } from '@/domains/links/services/links-store'
 
 const categoryTitleMap: Record<string, string> = {
   ai: 'AI',

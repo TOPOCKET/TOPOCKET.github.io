@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import BlobLayer from '@/components/BlobLayer.vue'
+import { BlobLayer } from '@/shared/ui'
 import { prompts } from '@/data/prompts'
-import { createPanelMotionPreset } from '@/composables/useBlobMotion'
-import { useInputShortcut } from '@/composables/useInputShortcut'
+import { createPanelMotionPreset } from '@/shared/ui/composables/useBlobMotion'
+import { useInputShortcut } from '@/shared/ui/composables/useInputShortcut'
 
 const keyword = ref('')
 const copiedId = ref<string | null>(null)

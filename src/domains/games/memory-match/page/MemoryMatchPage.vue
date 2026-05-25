@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import BlobLayer from '@/components/BlobLayer.vue'
-import { createPanelMotionPreset } from '@/composables/useBlobMotion'
+import { BlobLayer } from '@/shared/ui'
+import { createPanelMotionPreset } from '@/shared/ui/composables/useBlobMotion'
 
 interface CardItem {
   uid: string

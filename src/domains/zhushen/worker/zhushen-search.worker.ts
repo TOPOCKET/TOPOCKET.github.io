@@ -3,8 +3,8 @@
  * @description 诸神搜索 Worker 线程入口。
  */
 import { searchZhushenPlans } from '@/domains/zhushen/engine/simulator-core'
-import { zhushenSimulationInputSchema } from '@/features/zhushen-model'
-import { loadZhushenWasmCore } from '@/features/zhushen-wasm'
+import { zhushenSimulationInputSchema } from '@/domains/zhushen/model/zhushen-model'
+import { loadZhushenWasmCore } from '@/domains/zhushen/wasm/zhushen-wasm'
 import { SEARCH_RUNTIME_CONFIG } from '@/config/search'
 import type {
   ZhushenSearchWorkerErrorResponse,

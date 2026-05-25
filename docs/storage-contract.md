@@ -1,6 +1,6 @@
 # 存储契约（Storage Contract）
 
-所有浏览器端持久化必须统一通过 `src/storage/*` 与 `src/stores/*`。
+所有浏览器端持久化必须统一通过 `src/shared/persistence/*` 与各域 `services/*` store。
 禁止在页面/组件中直接调用 `localStorage.setItem/getItem`。
 
 ## 命名空间
@@ -13,7 +13,7 @@
 ### 1) 应用偏好（App Preferences）
 
 - Key：`sopronwitta:prefs:v1`
-- Store：`src/stores/prefsStore.ts`
+- Store：`src/domains/home/services/prefs-store.ts`
 - Schema：`prefsSchema`（zod）
 - 默认值：
   - `themeMode: "system"`
@@ -27,7 +27,7 @@
 ### 2) 2048 状态（2048 State）
 
 - Key：`sopronwitta:tool:2048:v1`
-- Store：`src/stores/game2048Store.ts`
+- Store：`src/domains/games/game-2048/services/game2048-store.ts`
 - Schema：`game2048Schema`（zod）
 - 默认值：
   - `board: 4x4 全 0`
@@ -44,7 +44,7 @@
 ### 3) 常用链接数据（Links Data）
 
 - Key：`sopronwitta:links:v1`
-- Store：`src/stores/linksStore.ts`
+- Store：`src/domains/links/services/links-store.ts`
 - Schema：`quickLinkListSchema`（zod）
 - 默认值：
   - 来自 `src/data/links.ts` 的 `defaultQuickLinks`
@@ -54,7 +54,7 @@
 ### 4) 诸神自定义数据（Zhushen Custom Data）
 
 - Key：`sopronwitta:tool:zhushen:custom:v1`
-- Store：`src/stores/zhushenCustomStore.ts`
+- Store：`src/domains/zhushen/services/zhushen-custom-store.ts`
 - Schema：`zhushenCustomSchema`（zod）
 - 默认值：
   - `jobs: []`
@@ -66,7 +66,7 @@
 
 ## 新工具接入检查清单
 
-1. 在 `src/storage/keys.ts` 定义新 key
+1. 在 `src/shared/persistence/keys.ts` 定义新 key
 2. 在 store 内（或共享 schema 模块）定义 zod schema
 3. 实现 store 的 `load/save/reset`
 4. 若存在旧版本数据，补充明确迁移路径

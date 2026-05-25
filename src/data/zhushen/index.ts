@@ -16,7 +16,7 @@ import {
   type JobDef,
   type SkillDef,
   type TraitDef,
-} from '../../features/zhushen-model'
+} from '@/domains/zhushen/model/zhushen-model'
 
 /**
  * builtinZhushenJobs 导出定义。

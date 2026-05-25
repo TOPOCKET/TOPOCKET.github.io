@@ -17,11 +17,11 @@
 ## 3. 目录与命名规范
 ```text
 src/
-  pages/               # Home / Tools / Prompts / Links
-  tools/<tool-name>/   # 工具模块：视图 + 逻辑 + 配置
+  app/                 # 路由与应用装配
+  domains/             # 业务域（页面/模型/服务/引擎）
+  shared/              # 跨域共享（ui/style/persistence/schema/types/utils）
   data/                # tools/prompts/links 配置数据
-  components/          # 通用组件
-  composables/         # 通用逻辑（如 useLocalStorage）
+  cheats/              # 作弊码能力
   types/               # 类型定义
 public/
   icons/

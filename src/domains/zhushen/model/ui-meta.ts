@@ -2,7 +2,7 @@
  * @file ui-meta 文件说明。
  * @description 诸神模拟器页面的 UI 元数据常量。
  */
-import type { AttrKey, EquipDef, TraitDef } from '@/features/zhushen-model'
+import type { AttrKey, EquipDef, TraitDef } from '@/domains/zhushen/model/zhushen-model'
 
 /**
  * 特性槽位中文标签映射。
@@ -44,4 +44,3 @@ export const ZHUSHEN_ATTR_LABEL: Record<AttrKey, string> = {
   per: '感知',
   wil: '意志',
 }
-

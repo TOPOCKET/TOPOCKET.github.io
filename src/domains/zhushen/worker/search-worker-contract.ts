@@ -2,7 +2,7 @@
  * @file search-worker-contract 文件说明。
  * @description 诸神搜索 Worker 的请求/响应契约。
  */
-import type { SearchProgress, SearchResult, SimulationInput } from '@/features/zhushen-model'
+import type { SearchProgress, SearchResult, SimulationInput } from '@/domains/zhushen/model/zhushen-model'
 
 /**
  * 搜索 Worker 请求。
@@ -46,4 +46,3 @@ export type ZhushenSearchWorkerResponse =
   | ZhushenSearchWorkerSuccessResponse
   | ZhushenSearchWorkerErrorResponse
   | ZhushenSearchWorkerProgressResponse
-

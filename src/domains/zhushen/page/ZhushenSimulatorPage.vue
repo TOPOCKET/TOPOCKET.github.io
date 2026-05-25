@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import BlobLayer from '@/components/BlobLayer.vue'
-import { createPanelMotionPreset } from '@/composables/useBlobMotion'
+import { BlobLayer } from '@/shared/ui'
+import { createPanelMotionPreset } from '@/shared/ui/composables/useBlobMotion'
 import {
   builtinZhushenEquips,
   builtinZhushenJobs,
@@ -15,15 +15,15 @@ import {
   type ScorePreset,
   type SearchProgress,
   type SimulationInput,
+  formatVec,
   zhushenEquipListSchema,
   zhushenJobListSchema,
   zhushenSimulationInputSchema,
   zhushenSkillListSchema,
   zhushenTraitListSchema,
-} from '@/features/zhushen-model'
-import { formatVec } from '@/features/zhushen-model'
+} from '@/domains/zhushen/model/zhushen-model'
 import { SEARCH_RUNTIME_CONFIG } from '@/config/search'
-import { zhushenCustomStore } from '@/stores/zhushenCustomStore'
+import { zhushenCustomStore } from '@/domains/zhushen/services/zhushen-custom-store'
 import { ZHUSHEN_ATTR_LABEL, ZHUSHEN_EQUIP_SLOT_LABEL, ZHUSHEN_TRAIT_SLOT_LABEL } from '@/domains/zhushen/model/ui-meta'
 import { runZhushenSimulation } from '@/domains/zhushen/engine/simulation'
 import { ZhushenSearchOrchestrator } from '@/domains/zhushen/orchestrator/search-orchestrator'

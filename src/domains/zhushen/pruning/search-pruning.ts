@@ -2,7 +2,7 @@
  * @file search-pruning 文件说明。
  * @description 诸神搜索的剪枝辅助函数。
  */
-import type { AttrVector, PromotionStep, SearchPlan } from '@/features/zhushen-model'
+import type { AttrVector, PromotionStep, SearchPlan } from '@/domains/zhushen/model/zhushen-model'
 
 /**
  * 将六维向量量化为细粒度桶签名。
@@ -76,4 +76,3 @@ export const filterDominatedByTiming = (plans: SearchPlan[]): SearchPlan[] => {
   }
   return kept
 }
-
