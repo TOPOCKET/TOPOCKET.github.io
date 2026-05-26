@@ -35,16 +35,31 @@ npm run build
 
 ## 文档体系（统一入口）
 
-为避免规则分散，项目文档统一收敛在 `docs/`：
+为避免规则分散，项目文档统一收敛在 `docs/`，推荐阅读顺序：
 
-- [docs/vibeCodingCopy.md](D:/Download/lysmarinel/docs/vibeCodingCopy.md)  
-  开发规范总文档（工程、样式、动效、JSDoc、提交流程等）
+- [docs/README.md](./docs/README.md)  
+  文档系统总览（分层结构、维护规则）
 
-- [docs/ui-semantics.md](D:/Download/lysmarinel/docs/ui-semantics.md)  
-  UI 语义类与卡片/光斑最新规范（`surface-card`、`BlobLayer`、`useBlobMotion`）
+- [docs/vibeCodingCopy.md](./docs/vibeCodingCopy.md)  
+  总体项目规范（必须遵循，最高优先级）
 
-- [docs/storage-contract.md](D:/Download/lysmarinel/docs/storage-contract.md)  
-  本地存储契约（key、schema、默认值、写入策略、接入清单）
+- [docs/reference/storage.md](./docs/reference/storage.md)  
+  数据与工具持久化规范（key、schema、写入/迁移策略）
+
+- [docs/reference/ui-semantics.md](./docs/reference/ui-semantics.md)  
+  UI 语义类与视觉一致性规范（`surface-card`、`BlobLayer`、层级规则）
+
+- [docs/reference/wasm.md](./docs/reference/wasm.md)  
+  WASM 源码/产物边界与更新流程
+
+- [docs/archive/completed-work-archive.md](./docs/archive/completed-work-archive.md)  
+  已完成任务归档（里程碑、实施细项、验收结果）
+
+- [docs/archive/architecture-upgrade-plan-archive.md](./docs/archive/architecture-upgrade-plan-archive.md)  
+  架构升级计划归档（P1-P5 完整记录与验收结果）
+
+- [docs/archive/observability-roadmap-archive.md](./docs/archive/observability-roadmap-archive.md)  
+  可观测性任务路线归档（O1-O4）
 
 ## 目录结构
 
@@ -56,7 +71,7 @@ src/
   cheats/             # 作弊码能力
   config/             # 运行时配置
   data/               # 配置数据与 schema
-  styles/             # tokens + components
+  shared/style/       # tokens + components
   types/              # 类型定义
 docs/                 # 项目规范与契约文档
 public/wasm/          # wasm 发布产物
@@ -69,185 +84,135 @@ wasm/zhushen-core/    # wasm Rust 源码
 - Pages Source：`GitHub Actions`
 - 工作流：`.github/workflows/deploy.yml`
 
-## 优化路线（持续更新）
+## 下一步可行优化方案
 
-说明：本模块用于记录“已确认的架构升级路径”。后续每次实施优化后，必须同步更新本模块状态与日期。
+### P1：状态支配关系强化（数学优化，最高优先级）
 
-### 路线 4：测试基线补齐（中优先级）
-
-- 目标：为高风险模块建立最小可回归测试网。
+- 目标：从搜索空间层面减少无效状态扩展。
 - 方案：
-  - 优先覆盖 `domains/zhushen/engine/simulation.ts`、`domains/zhushen/engine/simulator-core.ts`、`shared/persistence/record.ts`。
-  - 增加 schema 校验、持久化读写、关键路径搜索结果稳定性测试。
-- 收益：重构与性能优化可控，减少线上回归风险。
-- 状态：`completed`
+  - 在现有支配判定基础上引入资源约束偏序（转职次数、关键组合可达性）。
+  - 增加可达上界比较，提前剪除必败路径。
+- 验收：
+  - `exploredStates` 显著下降，且最优方案稳定不回退。
+- 状态：`completed`（2026-05-26）
+- 已完成：
+  - 搜索路径支配判定已引入资源约束（较少转职次数可支配较多转职次数状态）。
+  - 资源约束支配已接入 route frontier 判定流程，减少冗余扩展。
 
-### 路线 5：文档索引与变更映射（中优先级）
+### P2：可行域收缩（数学优化，高优先级）
 
-- 目标：让文档更新路径可追踪、可检查。
+- 目标：在展开前过滤数学上不可达候选。
 - 方案：
-  - 在 `docs/` 新增 `doc-index.md`，维护“模块 -> 文档 -> 更新触发条件”映射。
-  - 与 `docs/vibeCodingCopy.md` 的文档同步约束联动执行。
-- 收益：降低文档漂移，提升协作可见性。
-- 状态：`planned`
+  - 构建属性上界估计（角色成长 + 职业成长 + 装备/技能上界包络）。
+  - 无法满足目标职业/约束条件的候选不进入组合枚举。
+- 验收：
+  - 候选分支数量下降，结果与现有正确性用例一致。
+- 状态：`completed`（2026-05-26）
+- 已完成：
+  - 新增目标终态可达上界剪枝（结合剩余成长上界、职业面板上界、终态装备/技能）。
+  - 新增转职步骤可行域上界剪枝（`tempPanelBase + maxStepEquipSkillVec` 不达标直接跳过组合枚举）。
+  - 新增回归测试覆盖“不可达目标终态应快速收敛为空结果”。
 
-### 路线 6：全仓 Domain-First 架构重构（最高优先级）
-    
-- 目标：从“技术层分目录”升级为“业务域分目录”，以长期可扩展性和演进效率为第一目标。
-- 重构原则：
-  - 领域优先：代码按业务域聚合，不按技术类型聚合。
-  - 边界清晰：`domains/*` 只暴露对外门面，内部实现不跨域直接引用。
-  - 共享最小化：可共享的才进入 `shared/*`，避免“伪共享”。
-  - 一次定型：允许大迁移，避免长期双轨结构并存。
+### P3：多目标 Beam 排序（数学优化，中高优先级）
 
-#### 目标目录树（重构完成态）
+- 目标：减少短期高分但长期不可达状态占用 Beam。
+- 方案：
+  - 将单一分数排序升级为“可达性优先 + 关键属性差距 + 综合分”的多目标排序。
+  - 增加保留多样性约束，避免同质状态堆积。
+- 验收：
+  - Top 方案质量稳定，Beam 命中效率提升。
+- 状态：`completed`（2026-05-26）
+- 已完成：
+  - 候选保留阶段已切换为多目标排序（可达性余量 > 综合分 > 资源消耗）。
+  - 已加入同类状态占比上限，降低 Beam 同质化。
 
-```text
-src/
-  app/                         # 应用装配层（main/router/route meta）
-  domains/
-    home/                      # 首页域（搜索、筛选、工具卡列表）
-      page/
-      components/
-      model/
-      services/
-      index.ts
-    prompts/                   # 提示词域
-      page/
-      model/
-      services/
-      index.ts
-    links/                     # 常用链接域
-      page/
-      model/
-      services/
-      index.ts
-    games/
-      game-2048/               # 2048 域
-        page/
-        model/
-        services/
-        cheats/
-        index.ts
-      memory-match/            # 记忆翻牌域
-        page/
-        model/
-        services/
-        index.ts
-    zhushen/                   # 诸神域（核心复杂域）
-      page/
-      model/                   # 类型/schema/输入输出契约
-      engine/                  # simulate/search 主流程
-      pruning/                 # 剪枝策略
-      state-pool/              # SoA 状态池
-      wasm/
-      worker/
-      orchestrator/            # worker 编排与并行调度
-      index.ts
-  shared/
-    ui/                        # 可复用 UI 组件（BlobLayer、通用控件）
-    style/                     # tokens/components 样式
-    persistence/               # storage engine/keys/record + store contract
-    schema/                    # 跨域通用 schema 工具
-    types/                     # 跨域通用类型
-    utils/                     # 纯工具函数
-```
+### P4：等价类压缩与路径去重（数学优化，中优先级）
 
-#### 分阶段实施计划（详细）
+- 目标：压缩“顺序不同但结果等价”的重复路线。
+- 方案：
+  - 引入路线 canonical form（关键转职事件编码）并哈希归并。
+  - 等价候选仅保留代表状态。
+- 验收：
+  - 重复状态率下降，整体运行时下降。
+- 状态：`completed`（2026-05-26）
+- 已完成：
+  - 候选阶段新增等价类 key（job/transfer/lastPromo/growthSig）压缩。
+  - 每个等价类仅保留代表状态进入 Beam，减少重复扩展。
 
-1. 阶段 A：建立骨架与别名（无行为变更）
-   - 新建 `domains/*` 与 `shared/*` 目录骨架。
-   - 配置路径别名（如 `@domains/*`、`@shared/*`）。
-   - 先迁移 `styles`、`BlobLayer`、`storage contract` 到 `shared`。
-   - 状态：`completed`
+### P5：WASM 批量判定前移（工程优化，中优先级）
 
-2. 阶段 B：逐域搬迁页面与数据（低风险）
-   - 依次迁移 `home/prompts/links/games` 到 `domains`。
-   - 每个域建立 `index.ts` 门面导出，页面只引用门面。
-   - 保持路由路径不变，仅改 import。
-   - 状态：`completed`（页面实体已迁移到 `src/domains/*/page`，`src/pages` 已删除）
+- 目标：把高频批处理进一步下沉到 WASM。
+- 方案：
+  - 继续前移 dominance/route prune/group prune 批量判定。
+  - JS 保留调度与状态管理，减少跨层数据拷贝与循环开销。
+- 验收：
+  - 中大型输入场景下总耗时下降且结果一致。
+- 状态：`completed`（2026-05-26）
+- 已完成：
+  - 路径支配第一阶段已支持 `shortlist + rest` 的 WASM 批量判定（达到阈值时）。
+  - 已保留资源约束过滤，避免高资源状态错误支配低资源状态。
+  - 已通过 `test/build/perf` 回归验证。
 
-3. 阶段 C：诸神域深拆（高复杂）
-   - 拆分 `zhushen`：`model/engine/pruning/state-pool/wasm/worker/orchestrator`。
-   - 页面只保留状态组装与展示，不再内含调度逻辑。
-   - 状态：`completed`
+### P6：性能基准集与参数调优（工程优化，中优先级）
 
-4. 阶段 D：收口与删旧
-   - 删除旧 `features/pages/stores/storage/components` 中已迁移文件。
-   - 全量替换为 `domains/*` 与 `shared/*` 引用。
-   - 状态：`completed`
+- 目标：让优化可量化、可回归、可持续调参。
+- 方案：
+  - 建立小/中/大三档固定 benchmark dataset。
+  - 固定输出指标：`exploredStates`、`pruned ratio`、`total ms`、`best-score stability`。
+- 验收：
+  - 每次优化均可产出对比报告并可判断收益/回退。
+- 状态：`completed`（2026-05-26）
+- 已完成：
+  - 新增固定三档数据集：`scripts/benchmarks/zhushen-benchmark-dataset.json`。
+  - 新增基准测试与报告输出：`src/domains/zhushen/engine/simulation-benchmark.test.ts` -> `scripts/benchmarks/zhushen-benchmark-report.json`。
+  - 新增命令：`npm run benchmark:zhushen`、`npm run benchmark:wasm-route`。
 
-5. 阶段 E：测试与文档收敛
-  - 补齐高风险域测试（zhushen + persistence）。
-  - 更新 `docs/*` 与 `README` 目录说明，移除历史结构描述。
-   - 状态：`completed`
+## 建议执行顺序
 
-#### 完成判定标准（Done Criteria）
+- 顺序：`P1 -> P2 -> P3 -> P4 -> P5 -> P6`
+- 原则：每阶段独立提交、独立验收、可回滚。
+- 基线命令：`npm test`、`npm run build`、`npm run perf:check`。
+- 当前进度：`P1/P2/P3/P4/P5/P6 completed`。
 
-- `src/pages`、`src/features`、`src/stores`、`src/storage`、`src/components` 中业务代码迁移完毕并删除旧实现。
-- 所有业务 import 经由 `domains/*` 或 `shared/*`。
-- 构建通过、关键页面功能回归通过。
-- 文档体系（README + docs）完全反映新结构。
+## 分支爆炸专项（下一轮）
 
-#### 风险与控制
+### 问题定位
 
-- 风险：大范围路径迁移导致短期回归与冲突增多。
-- 控制：
-  - 分阶段提交，每阶段可独立回滚。
-  - 每阶段结束强制执行 `npm run build`。
-  - 关键域优先补测试后再删旧代码。
+- 现象：`候选数较低` 但 `exploredStates 极高`，且 `routeChecks` 远高于命中数。
+- 结论：瓶颈在“分支生成过大 + 后置比较过多”，不是状态池容量本身。
 
-- 本次执行（2026-05）：
-  - 已新增 `src/domains/*` 门面层与 `src/shared/*` 门面层骨架。
-  - 已配置并启用路径别名：`@app/*`、`@domains/*`、`@shared/*`。
-  - 路由层 `route-meta.ts` 已改为通过 `@domains/*` 引用页面门面。
-  - 已新增 `shared/persistence` 与 `shared/ui` 门面导出。
-  - 已完成页面迁移：`src/pages/*` -> `src/domains/*/page/*`，并清理旧页面路径引用。
-  - 阶段 C 已启动并完成首批拆分：
-    - 新增 `src/domains/zhushen/model/ui-meta.ts`，集中管理页面语义标签常量。
-    - 新增 `src/domains/zhushen/engine/simulation.ts`，页面通过域引擎门面调用模拟计算。
-    - 新增 `src/domains/zhushen/orchestrator/search-orchestrator.ts`，并行 Worker 编排从页面剥离。
-    - 新增 `src/domains/zhushen/worker/*`，搜索 Worker 与消息契约迁入域内目录。
-    - `ZhushenSimulatorPage.vue` 已移除 Worker 调度细节，仅保留输入组装、状态管理、展示与交互。
-  - 阶段 C 第二批已完成：
-    - 新增 `src/domains/zhushen/state-pool/soa-state-pool.ts`，承接 SoA 状态池与压缩逻辑。
-    - 新增 `src/domains/zhushen/pruning/search-pruning.ts`，承接量化分桶、路线哈希与时序支配过滤逻辑。
-    - `src/domains/zhushen/engine/simulator-core.ts` 已组合 `pruning/state-pool` 模块，向“流程编排层”收敛。
-  - 阶段 C 第三批已完成：
-    - 新增 `src/domains/zhushen/engine/simulator-core.ts`，承接 `simulateZhushen/searchZhushenPlans` 主体编排实现。
-    - `src/domains/zhushen/worker/zhushen-search.worker.ts` 已改为直接调用 domain engine，不再依赖 `features` 层。
-  - 阶段 C 收口已完成：
-    - 已清理项目内对 `src/features/zhushen-simulator.ts` 的剩余引用。
-    - 已删除 `src/features/zhushen-simulator.ts` 兼容层，统一改由 `domains/zhushen/engine/*` 提供能力。
-  - 阶段 D 首批已完成：
-    - `src/features/zhushen-model.ts`、`src/features/zhushen-wasm.ts` 已迁移到 `src/domains/zhushen/model|wasm` 并删除旧实现。
-    - `src/stores/*` 已迁移到各域 `services/*`（`home/links/game-2048/zhushen`）并删除旧实现。
-    - `src/storage/*` 已迁移到 `src/shared/persistence/*` 并删除旧实现。
-    - `src/components/*` 已迁移到 `src/shared/ui/components/*` 并删除旧实现。
-    - `src/composables/*` 已按职责拆分迁移（`home` 域下沉到 `src/domains/home/composables/*`，UI 公共能力迁移到 `src/shared/ui/composables/*`）并删除旧实现。
-    - 空目录 `src/workers` 已删除（Worker 实现已在 `src/domains/zhushen/worker/*`）。
-    - 业务代码中对 `@/features`、`@/stores`、`@/storage` 的直接引用已清理，统一改为 `@domains/*` 与 `@shared/*`。
-    - 业务代码中对 `@/components/*` 的直接引用已清理，统一改为 `@shared/ui` 门面导入。
-    - 业务代码中对 `@/composables/*` 的直接引用已清理，统一改为域内或 `@shared/ui/composables/*` 导入。
-    - 已执行 `npm run build`，构建通过。
-  - 阶段 E 已完成：
-    - 新增测试框架与命令：`vitest`、`npm test`。
-    - 新增 `src/shared/persistence/record.test.ts`，覆盖 fallback、合法读写、异常 JSON、schema 校验失败回退。
-    - 新增 `src/domains/zhushen/engine/simulation.test.ts`，覆盖基础模拟、转职条件失败、忽略条件转职。
-    - 已更新 `docs/storage-contract.md`、`docs/ui-semantics.md`、`docs/vibeCodingCopy.md` 与 README 目录结构到 Domain-First 现状。
-    - 已执行 `npm test` 与 `npm run build`，全部通过。
-- 状态：`completed`
+### R1：转职等级离散化（最高优先级）
 
-## 已完成优化记录
+- 目标：减少 `promoLevel` 逐级扫描产生的乘法扩张。
+- 方案：
+  - 从“每级枚举”收敛到“关键等级枚举”（最早可行 + 局部窗口 + 末段关键点）。
+  - 同职业同组合只保留有限等级候选。
+- 验收：
+  - `exploredStates` 下降 50%+（以 benchmark 中/大档为准）。
 
-### 路线 1：诸神模拟器核心拆层（2026-05）
+### R2：可达性前置过滤增强（高优先级）
 
-- 新增 `src/domains/zhushen/model/zhushen-model.ts`，承接模型类型、向量工具与 zod schema。
-- 页面、worker、数据层、store 的类型与 schema 引用迁移到 `domains/zhushen/model` 门面。
-- 算法主流程入口已下沉到 `src/domains/zhushen/engine/simulator-core.ts`。
+- 目标：在进入装备/技能双循环前判死不可达候选。
+- 方案：
+  - 扩展分阶段上界估计（成长上界 + 面板上界 + 组合上界）。
+  - 对不可达目标职业/约束直接跳过。
+- 验收：
+  - `candidateSize` 和组合枚举次数明显下降，结果稳定。
 
-### 路线 3：Store 契约统一（2026-05）
+### R3：Route 比较分桶（高优先级）
 
-- 新增统一契约：`src/shared/persistence/store-contract.ts`。
-- `linksStore / game2048Store / prefsStore / zhushenCustomStore` 全部接入 `StoreContract`（`satisfies` 约束）。
-- Store 基础能力边界统一为 `load/save/reset`，并保留各域扩展字段。
+- 目标：降低 `routeChecks` 比较基数。
+- 方案：
+  - 引入 route frontier 分桶键（transfer/lastPromo/growth band）。
+  - 优先桶内比较，再回退全局比较。
+- 验收：
+  - `routePrunes / routeChecks` 命中率提升，单轮耗时下降。
+
+### R4：参数保护档位（中优先级）
+
+- 目标：避免极端参数触发搜索规模失控。
+- 方案：
+  - 设定稳态默认档位：`beamWidth`、`maxTransfer`、`maxTierDelta`、`maxSkillPerStep`。
+  - 对高风险参数组合给出 UI 提示或软限制。
+- 验收：
+  - 默认配置下搜索耗时与探索量稳定在可接受区间。

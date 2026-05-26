@@ -1,0 +1,7 @@
+{
+  "assets": {
+    "indexJsMaxBytes": 235000,
+    "indexCssMaxBytes": 32000,
+    "workerJsMaxBytes": 100000
+  }
+}

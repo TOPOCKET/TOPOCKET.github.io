@@ -72,7 +72,7 @@ public/
 - 主题模式：默认跟随系统/浏览器（`prefers-color-scheme`）
 - 必须同时维护浅色/深色 token，禁止组件硬编码主题色
 - 深色优先，浅色为弱玻璃降级
-- 样式文件分层：`src/styles/tokens.css`（token）+ `src/styles/components.css`（语义组件类）
+- 样式文件分层：`src/shared/style/tokens.css`（token）+ `src/shared/style/components.css`（语义组件类）
 
 ## 8. 半透明 + 毛玻璃（核心约束）
 - 本项目对“半透明+毛玻璃”的定义：

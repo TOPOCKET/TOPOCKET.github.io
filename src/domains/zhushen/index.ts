@@ -4,6 +4,7 @@
  */
 export { default as ZhushenSimulatorPage } from './page/ZhushenSimulatorPage.vue'
 export * from './model/zhushen-model'
+export * from './ports'
 export { loadZhushenWasmCore } from './wasm/zhushen-wasm'
 export { runZhushenSimulation } from './engine/simulation'
-export { ZhushenSearchOrchestrator } from './orchestrator/search-orchestrator'
+export { ZhushenSearchOrchestrator, zhushenSearchOrchestratorFactory } from './orchestrator/search-orchestrator'

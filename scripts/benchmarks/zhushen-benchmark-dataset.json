@@ -1,0 +1,7 @@
+{
+  "datasets": [
+    { "id": "small", "targetLevel": 20, "beamWidth": 80, "maxTransfer": 2 },
+    { "id": "medium", "targetLevel": 40, "beamWidth": 180, "maxTransfer": 3 },
+    { "id": "large", "targetLevel": 60, "beamWidth": 320, "maxTransfer": 4 }
+  ]
+}

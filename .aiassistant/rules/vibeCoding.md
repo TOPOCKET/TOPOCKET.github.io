@@ -21,11 +21,11 @@
 ## 3. 目录与命名规范
 ```text
 src/
-  pages/               # Home / Tools / Prompts / Links
-  tools/<tool-name>/   # 工具模块：视图 + 逻辑 + 配置
+  app/                 # 路由与应用装配
+  domains/             # 业务域（页面/模型/服务/引擎）
+  shared/              # 跨域共享（ui/style/persistence/schema/types/utils）
   data/                # tools/prompts/links 配置数据
-  components/          # 通用组件
-  composables/         # 通用逻辑（如 useLocalStorage）
+  cheats/              # 作弊码能力
   types/               # 类型定义
 public/
   icons/
@@ -76,7 +76,7 @@ public/
 - 主题模式：默认跟随系统/浏览器（`prefers-color-scheme`）
 - 必须同时维护浅色/深色 token，禁止组件硬编码主题色
 - 深色优先，浅色为弱玻璃降级
-- 样式文件分层：`src/styles/tokens.css`（token）+ `src/styles/components.css`（语义组件类）
+- 样式文件分层：`src/shared/style/tokens.css`（token）+ `src/shared/style/components.css`（语义组件类）
 
 ## 8. 半透明 + 毛玻璃（核心约束）
 - 本项目对“半透明+毛玻璃”的定义：

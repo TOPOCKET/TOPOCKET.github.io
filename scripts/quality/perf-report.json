@@ -1,0 +1,43 @@
+{
+  "generatedAt": "2026-05-26T09:59:54.547Z",
+  "assets": {
+    "indexJsMaxBytes": {
+      "file": "index-BMy6Ebj4.js",
+      "bytes": 217354,
+      "budgetBytes": 235000,
+      "ratio": 92.5
+    },
+    "indexCssMaxBytes": {
+      "file": "index-BKL3CEqj.css",
+      "bytes": 27505,
+      "budgetBytes": 32000,
+      "ratio": 86
+    },
+    "workerJsMaxBytes": {
+      "file": "zhushen-search.worker-Dz1RfT_L.js",
+      "bytes": 87613,
+      "budgetBytes": 100000,
+      "ratio": 87.6
+    }
+  },
+  "baselineDiff": {
+    "indexJsMaxBytes": {
+      "baselineBytes": 213238,
+      "currentBytes": 217354,
+      "deltaBytes": 4116,
+      "deltaRatio": 1.9
+    },
+    "indexCssMaxBytes": {
+      "baselineBytes": 27474,
+      "currentBytes": 27505,
+      "deltaBytes": 31,
+      "deltaRatio": 0.1
+    },
+    "workerJsMaxBytes": {
+      "baselineBytes": 86648,
+      "currentBytes": 87613,
+      "deltaBytes": 965,
+      "deltaRatio": 1.1
+    }
+  }
+}

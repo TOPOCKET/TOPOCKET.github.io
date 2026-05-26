@@ -1,7 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 
-const wasmPath = path.resolve(__dirname, '..', 'public', 'wasm', 'zhushen_core.wasm')
+const wasmPath = path.resolve(__dirname, '..', '..', 'public', 'wasm', 'zhushen_core.wasm')
 
 const ge6 = (a, b, ia, ib) => {
   for (let k = 0; k < 6; k += 1) if (a[ia + k] < b[ib + k]) return false

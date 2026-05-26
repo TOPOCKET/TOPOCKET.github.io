@@ -1,4 +1,5 @@
 import { STORAGE_PREFIX, type StorageKey } from './keys'
+import type { StorageEnginePort } from './ports'
 
 const resolveKey = (key: StorageKey | string) => `${STORAGE_PREFIX}${key}`
 
@@ -26,7 +27,7 @@ const remove = (key: StorageKey | string) => {
   }
 }
 
-export const storageEngine = {
+export const storageEngine: StorageEnginePort = {
   getRaw,
   setRaw,
   remove,

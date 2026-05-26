@@ -4,6 +4,7 @@
  */
 import { SEARCH_RUNTIME_CONFIG } from '@/config/search'
 import type { SearchProgress, SearchResult, SimulationInput } from '@/domains/zhushen/model/zhushen-model'
+import type { ZhushenSearchOrchestratorFactoryPort, ZhushenSearchOrchestratorPort } from '@/domains/zhushen/ports'
 import type { ZhushenSearchWorkerResponse } from '../worker/search-worker-contract'
 
 /**
@@ -16,7 +17,7 @@ export interface ZhushenSearchOrchestratorCallbacks {
 /**
  * 诸神搜索执行器。
  */
-export class ZhushenSearchOrchestrator {
+export class ZhushenSearchOrchestrator implements ZhushenSearchOrchestratorPort {
   private searchWorker: Worker | null = null
   private searchReqId = 0
   private parallelWorkers: Worker[] = []
@@ -169,4 +170,8 @@ export class ZhushenSearchOrchestrator {
       prunedByDominance: settled.reduce((acc, x) => acc + x.prunedByDominance, 0),
     }
   }
+}
+
+export const zhushenSearchOrchestratorFactory: ZhushenSearchOrchestratorFactoryPort = {
+  create: (callbacks) => new ZhushenSearchOrchestrator(callbacks),
 }

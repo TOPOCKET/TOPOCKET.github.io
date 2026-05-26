@@ -23,10 +23,23 @@ import {
   zhushenTraitListSchema,
 } from '@/domains/zhushen/model/zhushen-model'
 import { SEARCH_RUNTIME_CONFIG } from '@/config/search'
+import { trackAnalyticsEvent } from '@/shared/observability/client'
+import { normalizeUnknownError } from '@/shared/observability/errors'
 import { zhushenCustomStore } from '@/domains/zhushen/services/zhushen-custom-store'
 import { ZHUSHEN_ATTR_LABEL, ZHUSHEN_EQUIP_SLOT_LABEL, ZHUSHEN_TRAIT_SLOT_LABEL } from '@/domains/zhushen/model/ui-meta'
 import { runZhushenSimulation } from '@/domains/zhushen/engine/simulation'
-import { ZhushenSearchOrchestrator } from '@/domains/zhushen/orchestrator/search-orchestrator'
+import type { ZhushenSearchOrchestratorPort } from '@/domains/zhushen/ports'
+import { zhushenSearchOrchestratorFactory } from '@/domains/zhushen/orchestrator/search-orchestrator'
+import {
+  initialZhushenSimulatorUiState,
+  reduceZhushenSimulatorState,
+  type ZhushenSimulatorEvent,
+} from '@/domains/zhushen/model/simulator-events'
+import {
+  createZhushenDebugSnapshot,
+  parseZhushenDebugSnapshot,
+  replayZhushenDebugSnapshot,
+} from '@/domains/zhushen/model/debug-snapshot'
 
 const pageMotion = computed(() => createPanelMotionPreset('zhushen:simulator'))
 const custom = ref(zhushenCustomStore.load())
@@ -65,9 +78,41 @@ const errorText = ref('')
 const selectionError = ref('')
 const searchPending = ref(false)
 const searchProgress = ref<SearchProgress | null>(null)
-const searchOrchestrator = new ZhushenSearchOrchestrator({
+const uiState = ref(initialZhushenSimulatorUiState())
+const uiEventLog = ref<ZhushenSimulatorEvent[]>([])
+const dispatchUiEvent = (event: ZhushenSimulatorEvent) => {
+  const eventNameMap: Record<
+    ZhushenSimulatorEvent['type'],
+    'calculation_started' | 'simulation_succeeded' | 'search_started' | 'search_progress_updated' | 'search_succeeded' | 'calculation_failed' | 'selection_error_set' | 'selection_error_clear'
+  > = {
+    selection_error_set: 'selection_error_set',
+    selection_error_clear: 'selection_error_clear',
+    calculation_started: 'calculation_started',
+    simulation_succeeded: 'simulation_succeeded',
+    search_started: 'search_started',
+    search_progress_updated: 'search_progress_updated',
+    search_succeeded: 'search_succeeded',
+    calculation_failed: 'calculation_failed',
+  }
+  uiEventLog.value = [...uiEventLog.value, event]
+  trackAnalyticsEvent({
+    name: eventNameMap[event.type],
+    domain: 'zhushen',
+    at: Date.now(),
+    payload: event.type === 'calculation_failed' ? { code: event.error.code, category: event.error.category, stage: event.error.stage } : undefined,
+  })
+  uiState.value = reduceZhushenSimulatorState(uiState.value, event)
+  output.value = uiState.value.output
+  searchSummary.value = uiState.value.searchSummary
+  topPlans.value = uiState.value.topPlans
+  errorText.value = uiState.value.errorText
+  selectionError.value = uiState.value.selectionError
+  searchPending.value = uiState.value.searchPending
+  searchProgress.value = uiState.value.searchProgress
+}
+const searchOrchestrator: ZhushenSearchOrchestratorPort = zhushenSearchOrchestratorFactory.create({
   onProgress: (progress) => {
-    searchProgress.value = progress
+    dispatchUiEvent({ type: 'search_progress_updated', progress })
   },
 })
 
@@ -111,10 +156,10 @@ const DEFAULT_PROMOTION_JOB_ID = 'soldier'
 const toggle = (arr: string[], id: string): string[] => (arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id])
 const enforceSkillMax3 = (nextIds: string[], context: string): string[] | null => {
   if (nextIds.length > 3) {
-    selectionError.value = `${context}最多选择3个技能`
+    dispatchUiEvent({ type: 'selection_error_set', message: `${context}最多选择3个技能` })
     return null
   }
-  selectionError.value = ''
+  dispatchUiEvent({ type: 'selection_error_clear' })
   return nextIds
 }
 const enforceEquipSlots = (nextIds: string[], context: string): string[] | null => {
@@ -124,12 +169,12 @@ const enforceEquipSlots = (nextIds: string[], context: string): string[] | null 
     const slot = map.get(id)?.slot
     if (!slot) continue
     if (used.has(slot)) {
-      selectionError.value = `${context}每种装备分类最多1个`
+      dispatchUiEvent({ type: 'selection_error_set', message: `${context}每种装备分类最多1个` })
       return null
     }
     used.add(slot)
   }
-  selectionError.value = ''
+  dispatchUiEvent({ type: 'selection_error_clear' })
   return nextIds
 }
 const enforceTraitSlots = (nextIds: string[]): string[] | null => {
@@ -139,12 +184,12 @@ const enforceTraitSlots = (nextIds: string[]): string[] | null => {
     const slot = map.get(id)?.slot
     if (!slot) continue
     if (slot !== 'learning' && used.has(slot)) {
-      selectionError.value = '除学习外，每个特性位置最多1个'
+      dispatchUiEvent({ type: 'selection_error_set', message: '除学习外，每个特性位置最多1个' })
       return null
     }
     if (slot !== 'learning') used.add(slot)
   }
-  selectionError.value = ''
+  dispatchUiEvent({ type: 'selection_error_clear' })
   return nextIds
 }
 
@@ -245,21 +290,18 @@ watch(
 )
 
 const calculate = async () => {
-  errorText.value = ''
-  output.value = null
-  searchSummary.value = null
-  topPlans.value = []
-  searchPending.value = false
-  searchProgress.value = null
+  dispatchUiEvent({ type: 'calculation_started' })
   try {
     const parsed = zhushenSimulationInputSchema.parse(buildInput())
     const sim = runZhushenSimulation(parsed)
-    output.value = { final: sim.final, growthAcc: sim.growthAcc, jobName: sim.currentJob.name, logs: sim.logs }
+    dispatchUiEvent({
+      type: 'simulation_succeeded',
+      output: { final: sim.final, growthAcc: sim.growthAcc, jobName: sim.currentJob.name, logs: sim.logs },
+    })
     if (parsed.search?.enabled) {
-      searchPending.value = true
+      dispatchUiEvent({ type: 'search_started' })
       const searchResult = await searchOrchestrator.run(parsed)
-      searchSummary.value = { exploredStates: searchResult.exploredStates, prunedByDominance: searchResult.prunedByDominance }
-      topPlans.value = searchResult.topPlans.slice(0, 10).map((x) => ({
+      const plans = searchResult.topPlans.slice(0, 10).map((x) => ({
         rank: x.rank,
         score: x.score,
         final: x.final,
@@ -269,14 +311,65 @@ const calculate = async () => {
             .join(' / ') || '无转职',
         promotions: x.promotions.map((p) => ({ ...p, equipIds: [...p.equipIds], skillIds: [...p.skillIds] })),
       }))
-      searchPending.value = false
-      searchProgress.value = null
+      dispatchUiEvent({
+        type: 'search_succeeded',
+        summary: { exploredStates: searchResult.exploredStates, prunedByDominance: searchResult.prunedByDominance },
+        plans,
+      })
     }
   } catch (error) {
     searchOrchestrator.dispose()
-    searchPending.value = false
-    searchProgress.value = null
-    errorText.value = error instanceof Error ? error.message : 'unknown error'
+    dispatchUiEvent({
+      type: 'calculation_failed',
+      error: normalizeUnknownError(error, 'zhushen.calculate', {
+        targetLevel: targetLevel.value,
+        promotionCount: promotions.value.length,
+      }),
+    })
+  }
+}
+
+const exportDebugSnapshot = () => {
+  const snapshot = createZhushenDebugSnapshot({
+    domain: 'zhushen',
+    input: buildInput(),
+    events: uiEventLog.value,
+    state: uiState.value,
+    meta: { version: '0.0.0', buildAt: new Date().toISOString() },
+  })
+  const blob = new Blob([JSON.stringify(snapshot)], { type: 'application/json;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `zhushen-debug-snapshot-${Date.now()}.json`
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
+const importDebugSnapshot = async (event: Event) => {
+  const inputEl = event.target as HTMLInputElement
+  const file = inputEl.files?.[0]
+  if (!file) return
+  try {
+    const content = await file.text()
+    const parsed = parseZhushenDebugSnapshot(content)
+    const replayed = replayZhushenDebugSnapshot(parsed)
+    uiEventLog.value = [...parsed.events]
+    uiState.value = replayed
+    output.value = replayed.output
+    searchSummary.value = replayed.searchSummary
+    topPlans.value = replayed.topPlans
+    errorText.value = replayed.errorText
+    selectionError.value = replayed.selectionError
+    searchPending.value = replayed.searchPending
+    searchProgress.value = replayed.searchProgress
+  } catch (error) {
+    dispatchUiEvent({
+      type: 'calculation_failed',
+      error: normalizeUnknownError(error, 'zhushen.snapshot.import'),
+    })
+  } finally {
+    inputEl.value = ''
   }
 }
 
@@ -289,10 +382,11 @@ const applyPlanToManual = (plan: { promotions: PromotionStep[] }) => {
   }))
   activeEquipIds.value = [...searchFinalEquipIds.value]
   activeSkillIds.value = [...searchFinalSkillIds.value]
-  selectionError.value = ''
+  dispatchUiEvent({ type: 'selection_error_clear' })
 }
 
 calculate()
+trackAnalyticsEvent({ name: 'page_entered', domain: 'zhushen', at: Date.now() })
 onBeforeUnmount(() => {
   searchOrchestrator.dispose()
 })
@@ -422,7 +516,14 @@ onBeforeUnmount(() => {
     </section>
 
     <div class="mb-4">
-      <button class="ui-btn ui-btn--primary" :disabled="searchPending" @click="calculate">{{ searchPending ? '搜索中...' : '计算' }}</button>
+      <div class="flex flex-wrap items-center gap-2">
+        <button class="ui-btn ui-btn--primary" :disabled="searchPending" @click="calculate">{{ searchPending ? '搜索中...' : '计算' }}</button>
+        <button class="ui-btn ui-btn--ghost" @click="exportDebugSnapshot">导出快照</button>
+        <label class="ui-btn ui-btn--ghost cursor-pointer">
+          导入快照
+          <input class="hidden" type="file" accept="application/json" @change="importDebugSnapshot" />
+        </label>
+      </div>
       <div v-if="searchPending && searchProgress" class="mt-2">
         <progress class="h-2 w-full" :max="searchProgress.totalSteps" :value="searchProgress.step" />
         <p class="text-sm text-[var(--text-muted)]">

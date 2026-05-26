@@ -4,5 +4,6 @@
  */
 export * from './engine'
 export * from './keys'
+export * from './ports'
 export * from './record'
 export * from './store-contract'

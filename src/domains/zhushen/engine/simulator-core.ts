@@ -513,9 +513,20 @@ const addVec6Into = (out: Vec6, a: Vec6): void => {
 const addMulVec6Into = (out: Vec6, a: Vec6, m: number): void => {
   for (let i = 0; i < 6; i += 1) out[i] += a[i] * m
 }
+const addVec6From = (out: Vec6, a: Vec6, b: Vec6): void => {
+  for (let i = 0; i < 6; i += 1) out[i] = a[i] + b[i]
+}
 const geVec6 = (a: Vec6, b: Vec6): boolean => {
   for (let i = 0; i < 6; i += 1) if (a[i] < b[i]) return false
   return true
+}
+const dominatesVec6 = (a: Vec6, b: Vec6): boolean => {
+  let strictly = false
+  for (let i = 0; i < 6; i += 1) {
+    if (a[i] < b[i]) return false
+    if (a[i] > b[i]) strictly = true
+  }
+  return strictly
 }
 const scoreVec6 = (v: Vec6, preset: ScorePreset, custom?: Partial<AttrVector>): number => {
   if (preset === 'str_first') return v[0] * 3 + v[3] * 1.2 + v[2] + v[1] + v[4] + v[5]
@@ -545,7 +556,7 @@ const factorRange = (prefix: Float32Array, fromLevel: number, toLevel: number): 
 }
 
 
-class MinHeapTopK {
+export class MinHeapTopK {
   private readonly data: Array<{ index: number; score: number }> = []
   private readonly k: number
   constructor(k: number) {
@@ -678,8 +689,30 @@ export const searchZhushenPlans = async (
   const jobPanelVec = input.jobs.map((j) => vec6FromAttr(j.panel))
   const jobGrowthVec = input.jobs.map((j) => vec6FromAttr(j.growth))
   const jobRequireVec = input.jobs.map((j) => vec6FromAttr(j.require))
+  const maxJobPanelVec = vec6()
+  const maxJobGrowthVec = vec6()
+  for (let k = 0; k < 6; k += 1) {
+    let p = 0
+    let g = 0
+    for (let i = 0; i < input.jobs.length; i += 1) {
+      if (jobPanelVec[i][k] > p) p = jobPanelVec[i][k]
+      if (jobGrowthVec[i][k] > g) g = jobGrowthVec[i][k]
+    }
+    maxJobPanelVec[k] = p
+    maxJobGrowthVec[k] = g
+  }
+  const maxStepEquipSkillVec = vec6()
+  for (let k = 0; k < 6; k += 1) {
+    let maxEquip = 0
+    let maxSkill = 0
+    for (let i = 0; i < equipVecByLoadout.length; i += 1) if (equipVecByLoadout[i][k] > maxEquip) maxEquip = equipVecByLoadout[i][k]
+    for (let i = 0; i < skillVecByLoadout.length; i += 1) if (skillVecByLoadout[i][k] > maxSkill) maxSkill = skillVecByLoadout[i][k]
+    maxStepEquipSkillVec[k] = maxEquip + maxSkill
+  }
   const charGrowthVec = vec6FromAttr(input.character.growth)
   const factorPrefixArr = factorPrefix(input.targetLevel)
+  const targetFinalIndex = search.targetFinalJobId ? jobIndexById.get(search.targetFinalJobId) : undefined
+  const targetFinalRequireVec = targetFinalIndex === undefined ? null : jobRequireVec[targetFinalIndex]
 
   const base = addVec(input.character.base, addMany([input.character.trait, sumStatsByIds(input.traits, input.activeTraitIds, 'active trait')]))
   const baseVec = vec6FromAttr(base)
@@ -711,7 +744,7 @@ export const searchZhushenPlans = async (
     let groupPrunes = 0
     type SkylineLayer = { states: number[]; majorMap: Map<string, number[]>; stateMajor: Map<number, string> }
     type SkylineBucket = { byLastLevel: Array<SkylineLayer | undefined> }
-    const routeFrontier = new Map<number, Map<number, Map<number, SkylineBucket>>>()
+    const routeFrontier = new Map<number, Map<number, SkylineBucket>>()
     type Bucket = { states: number[]; sigMap: Map<string, number[]>; stateSig: Map<number, string> }
     const groups = new Map<number, Bucket>()
 
@@ -728,18 +761,28 @@ export const searchZhushenPlans = async (
       routeHash: number,
       growth: Vec6,
     ): void => {
-      const transferKey = transferCount
       const jobKey = jobIndex
       const hashKey = routeHash
-      let byJob = routeFrontier.get(transferKey)
-      if (!byJob) {
-        byJob = new Map<number, Map<number, SkylineBucket>>()
-        routeFrontier.set(transferKey, byJob)
+      // P2: 目标终态可达上界剪枝
+      if (targetFinalRequireVec) {
+        const remainFactor = factorRange(factorPrefixArr, level, input.targetLevel)
+        tempCheck.fill(0)
+        addVec6Into(tempCheck, baseVec)
+        addVec6Into(tempCheck, maxJobPanelVec)
+        addVec6Into(tempCheck, growth)
+        addMulVec6Into(tempCheck, charGrowthVec, remainFactor)
+        addMulVec6Into(tempCheck, maxJobGrowthVec, remainFactor)
+        addVec6Into(tempCheck, finalEquipVec)
+        addVec6Into(tempCheck, finalSkillVec)
+        if (!geVec6(tempCheck, targetFinalRequireVec)) {
+          prunedByDominance += 1
+          return
+        }
       }
-      let byHash = byJob.get(jobKey)
+      let byHash = routeFrontier.get(jobKey)
       if (!byHash) {
         byHash = new Map<number, SkylineBucket>()
-        byJob.set(jobKey, byHash)
+        routeFrontier.set(jobKey, byHash)
       }
       const frontier = byHash.get(hashKey) ?? { byLastLevel: new Array<SkylineLayer | undefined>(MAX_LEVEL + 1) }
       const currentLastLevel = promoLevel > 0 ? promoLevel : parentIndex >= 0 ? pool.lastPromoLevels[parentIndex] : 0
@@ -756,11 +799,16 @@ export const searchZhushenPlans = async (
         if (!layer) continue
         const shortlist = layer.majorMap.get(candMajor) ?? []
         const rest = shortlist.length < layer.states.length ? layer.states : []
-        if (runtime?.wasmCore && shortlist.length >= ROUTE_WASM_THRESHOLD) {
-          const batchCodes = new Uint16Array(shortlist.length * MAX_TRANSFER_COUNT)
-          const batchStats = new Float32Array(shortlist.length * 6)
-          for (let i = 0; i < shortlist.length; i += 1) {
-            const kept = shortlist[i]
+        const wasmRouteCheckList = runtime?.wasmCore && shortlist.length + rest.length >= ROUTE_WASM_THRESHOLD
+          ? [...shortlist, ...rest.filter((kept) => !shortlist.includes(kept))]
+          : null
+        if (runtime?.wasmCore && wasmRouteCheckList && wasmRouteCheckList.length >= ROUTE_WASM_THRESHOLD) {
+          const batchCodes = new Uint16Array(wasmRouteCheckList.length * MAX_TRANSFER_COUNT)
+          const batchStats = new Float32Array(wasmRouteCheckList.length * 6)
+          for (let i = 0; i < wasmRouteCheckList.length; i += 1) {
+            const kept = wasmRouteCheckList[i]
+            const keptTransfer = pool.transferCounts[kept]
+            if (keptTransfer > transferCount) continue
             const cBase = kept * MAX_TRANSFER_COUNT
             const cOut = i * MAX_TRANSFER_COUNT
             for (let j = 0; j < MAX_TRANSFER_COUNT; j += 1) batchCodes[cOut + j] = pool.promoLevelCodes[cBase + j]
@@ -769,7 +817,10 @@ export const searchZhushenPlans = async (
             for (let j = 0; j < 6; j += 1) batchStats[gOut + j] = pool.growth[gBase + j]
           }
           const compared = runtime.wasmCore.routePruneFlags(batchCodes, batchStats, MAX_TRANSFER_COUNT, transferCount, candidateCode, growth)
-          for (let i = 0; i < shortlist.length; i += 1) {
+          for (let i = 0; i < wasmRouteCheckList.length; i += 1) {
+            const kept = wasmRouteCheckList[i]
+            const keptTransfer = pool.transferCounts[kept]
+            if (keptTransfer > transferCount) continue
             routeChecks += 1
             if (compared.domByBatch[i] === 1) {
               dominatedByRoute = true
@@ -780,10 +831,12 @@ export const searchZhushenPlans = async (
           }
         } else {
           for (const kept of shortlist) {
-            if (pool.transferCounts[kept] !== transferCount) continue
+            const keptTransfer = pool.transferCounts[kept]
+            // P1: 资源约束支配，较少转职次数可支配较多转职次数
+            if (keptTransfer > transferCount) continue
             const keptBase = kept * MAX_TRANSFER_COUNT
             let noLater = true
-            for (let i = 0; i < transferCount; i += 1) {
+            for (let i = 0; i < keptTransfer; i += 1) {
               if (pool.promoLevelCodes[keptBase + i] > candidateCode[i]) {
                 noLater = false
                 break
@@ -799,13 +852,14 @@ export const searchZhushenPlans = async (
             break
           }
         }
-        if (!dominatedByRoute) {
+        if (!dominatedByRoute && !wasmRouteCheckList) {
           for (const kept of rest) {
             if (shortlist.includes(kept)) continue
-            if (pool.transferCounts[kept] !== transferCount) continue
+            const keptTransfer = pool.transferCounts[kept]
+            if (keptTransfer > transferCount) continue
             const keptBase = kept * MAX_TRANSFER_COUNT
             let noLater = true
-            for (let i = 0; i < transferCount; i += 1) {
+            for (let i = 0; i < keptTransfer; i += 1) {
               if (pool.promoLevelCodes[keptBase + i] > candidateCode[i]) {
                 noLater = false
                 break
@@ -871,7 +925,9 @@ export const searchZhushenPlans = async (
           for (let i = layer.states.length - 1; i >= 0; i -= 1) {
             const kept = layer.states[i]
             if (shortlist.length > 0 && !shortlist.includes(kept)) continue
-            if (pool.transferCounts[kept] !== transferCount) continue
+            const keptTransfer = pool.transferCounts[kept]
+            // 候选转职次数更多时，不反向支配更省资源状态
+            if (transferCount > keptTransfer) continue
             const keptBase = kept * MAX_TRANSFER_COUNT
             let noLater = true
             for (let j = 0; j < transferCount; j += 1) {
@@ -1061,6 +1117,12 @@ export const searchZhushenPlans = async (
           if (job.tier - target.tier > 1) continue
 
           if (stateTransfer === 0 && firstStepAllowed && !firstStepAllowed.has(target.id)) continue
+          // 当目标职业成长向量严格支配当前职业时，同一装备/技能组合仅需保留“最早可行转职等级”
+          const preferEarliestPromotion = dominatesVec6(jobGrowthVec[targetJobIndex], jobGrowthVec[stateJobIndex])
+          const comboLocked = preferEarliestPromotion ? new Uint8Array(equipLoadouts.length * skillLoadouts.length) : null
+          // P2: 当前等级转职可行域上界剪枝
+          addVec6From(tempCheck, tempPanelBase, maxStepEquipSkillVec)
+          if (!geVec6(tempCheck, jobRequireVec[targetJobIndex])) continue
           let passFlags: Uint8Array | null = null
           if (runtime?.wasmCore && equipVecByLoadout.length * skillVecByLoadout.length >= 256) {
             const panel = new Float32Array(6)
@@ -1072,6 +1134,7 @@ export const searchZhushenPlans = async (
           for (let equipIdx = 0; equipIdx < equipLoadouts.length; equipIdx += 1) {
             for (let skillIdx = 0; skillIdx < skillLoadouts.length; skillIdx += 1) {
               const flatIdx = equipIdx * skillLoadouts.length + skillIdx
+              if (comboLocked && comboLocked[flatIdx] === 1) continue
               if (passFlags) {
                 if (passFlags[flatIdx] !== 1) continue
               } else {
@@ -1099,6 +1162,7 @@ export const searchZhushenPlans = async (
                 routeHashNext(pool.routeHashes[stateIndex], targetJobIndex),
                 tempNextGrowth,
               )
+              if (comboLocked) comboLocked[flatIdx] = 1
               exploredStates += 1
               opCounter += 1
               if (opCounter % 200000 === 0) {
@@ -1169,9 +1233,61 @@ export const searchZhushenPlans = async (
       scoreCache.set(index, value)
       return value
     }
-    const topk = new MinHeapTopK(search.beamWidth)
-    for (const candidate of candidates) topk.push(candidate, scoreOfCandidate(candidate))
-    beam = topk.valuesDesc()
+    // P4: 等价类压缩，按(job, transfer, lastPromo, growth sig)保留每组最优候选
+    const deduped = new Map<string, number>()
+    for (const candidate of candidates) {
+      pool.fillGrowth(candidate, tempScore)
+      const key = `${pool.jobIndexes[candidate]}:${pool.transferCounts[candidate]}:${pool.lastPromoLevels[candidate]}:${quantSig(tempScore)}`
+      const prev = deduped.get(key)
+      if (prev === undefined || scoreOfCandidate(candidate) > scoreOfCandidate(prev)) deduped.set(key, candidate)
+    }
+    const dedupedCandidates = [...deduped.values()]
+
+    // P3: 多目标排序（可达性余量 > 综合分 > 资源消耗）
+    const marginOfCandidate = (index: number): number => {
+      if (!targetFinalRequireVec) return Number.POSITIVE_INFINITY
+      tempCheck.fill(0)
+      addVec6Into(tempCheck, baseVec)
+      addVec6Into(tempCheck, jobPanelVec[pool.jobIndexes[index]])
+      pool.appendGrowthTo(index, tempCheck)
+      addVec6Into(tempCheck, finalEquipVec)
+      addVec6Into(tempCheck, finalSkillVec)
+      let margin = Number.POSITIVE_INFINITY
+      for (let k = 0; k < 6; k += 1) margin = Math.min(margin, tempCheck[k] - targetFinalRequireVec[k])
+      return margin
+    }
+    dedupedCandidates.sort((a, b) => {
+      const ma = marginOfCandidate(a)
+      const mb = marginOfCandidate(b)
+      const fa = ma >= 0 ? 1 : 0
+      const fb = mb >= 0 ? 1 : 0
+      if (fa !== fb) return fb - fa
+      if (mb !== ma) return mb - ma
+      const sa = scoreOfCandidate(a)
+      const sb = scoreOfCandidate(b)
+      if (sb !== sa) return sb - sa
+      return pool.transferCounts[a] - pool.transferCounts[b]
+    })
+    // 多样性约束：限制同 major bucket 过度占用
+    const beamNext: number[] = []
+    const majorCount = new Map<string, number>()
+    const perMajorCap = Math.max(2, Math.ceil(search.beamWidth / 8))
+    for (const candidate of dedupedCandidates) {
+      if (beamNext.length >= search.beamWidth) break
+      pool.fillGrowth(candidate, tempScore)
+      const major = majorBucket(tempScore)
+      const cnt = majorCount.get(major) ?? 0
+      if (cnt >= perMajorCap) continue
+      majorCount.set(major, cnt + 1)
+      beamNext.push(candidate)
+    }
+    if (beamNext.length < search.beamWidth) {
+      for (const candidate of dedupedCandidates) {
+        if (beamNext.length >= search.beamWidth) break
+        if (!beamNext.includes(candidate)) beamNext.push(candidate)
+      }
+    }
+    beam = beamNext
     if (pool.size > search.beamWidth * 40) {
       const compacted = compactStatePool(pool, beam, vec6)
       pool = compacted.pool
@@ -1184,7 +1300,7 @@ export const searchZhushenPlans = async (
       step: transferStep + 1,
       totalSteps: search.maxTransfer + 1,
       beamSize: beam.length,
-      candidateSize: candidates.length,
+      candidateSize: dedupedCandidates.length,
       exploredStates,
       prunedByDominance,
       poolSize: pool.size,
@@ -1198,8 +1314,6 @@ export const searchZhushenPlans = async (
     })
   }
 
-  const targetFinalJobId = search.targetFinalJobId
-  const targetFinalIndex = targetFinalJobId ? jobIndexById.get(targetFinalJobId) : undefined
   const beamForOutput = targetFinalIndex === undefined ? beam : beam.filter((index) => pool.jobIndexes[index] === targetFinalIndex)
 
   const rawPlans = beamForOutput
