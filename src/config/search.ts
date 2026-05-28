@@ -8,13 +8,12 @@
  * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
  */
 export const SEARCH_RUNTIME_CONFIG = {
-  beamWidthDefault: 1000,
-  maxTransferDefault: 5,
-  maxTierDeltaDefault: 3,
-  maxSkillPerStepDefault: 2,
+  beamWidthDefault: 600,
+  maxTransferDefault: 4,
+  maxTierDeltaDefault: 2,
+  maxSkillPerStepDefault: 1,
   workerYieldEvery: 2000,
   routeWasmThreshold: 256,
   groupWasmThreshold: 128,
   parallelWorkerIdleTimeoutMs: 180000,
 } as const
-

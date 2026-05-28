@@ -77,18 +77,19 @@ export class ZhushenSearchOrchestrator implements ZhushenSearchOrchestratorPort 
     this.parallelWorkers.forEach((w) => w.terminate())
     this.parallelWorkers = []
 
-    const tasksQueue: string[][] = jobIds.map((id) => [id])
+    const tasksQueue = jobIds.map((id, taskId) => ({ taskId, firstStepJobIds: [id] as string[] }))
     if (tasksQueue.length <= 1) return this.runSearchInWorker(input)
 
-    const progressByShard = new Map<number, SearchProgress>()
+    const progressByTask = new Map<number, SearchProgress>()
+    const totalTasks = tasksQueue.length
     const updateAggregateProgress = () => {
-      if (progressByShard.size === 0) return
-      const rows = [...progressByShard.values()]
+      if (progressByTask.size === 0) return
+      const rows = [...progressByTask.values()]
       const totalSteps = rows[0]?.totalSteps || 1
-      const ratio = rows.reduce((acc, p) => acc + p.step / Math.max(p.totalSteps, 1), 0) / rows.length
+      const ratio = rows.reduce((acc, p) => acc + p.step / Math.max(p.totalSteps, 1), 0) / Math.max(totalTasks, 1)
       this.callbacks.onProgress({
         phase: rows.some((p) => p.phase === 'running') ? 'running' : 'completed',
-        step: Math.max(1, Math.round(ratio * totalSteps)),
+        step: Math.min(totalSteps, Math.max(1, Math.ceil(ratio * totalSteps))),
         totalSteps,
         beamSize: rows.reduce((acc, p) => acc + p.beamSize, 0),
         candidateSize: rows.reduce((acc, p) => acc + p.candidateSize, 0),
@@ -106,7 +107,7 @@ export class ZhushenSearchOrchestrator implements ZhushenSearchOrchestratorPort 
     }
 
     const settled: SearchResult[] = []
-    const runTask = (worker: Worker, shardIndex: number, firstStepJobIds: string[]): Promise<SearchResult> =>
+    const runTask = (worker: Worker, taskId: number, firstStepJobIds: string[]): Promise<SearchResult> =>
       new Promise((resolve, reject) => {
         const reqId = ++this.searchReqId
         const idleTimeoutMs = SEARCH_RUNTIME_CONFIG.parallelWorkerIdleTimeoutMs
@@ -115,7 +116,7 @@ export class ZhushenSearchOrchestrator implements ZhushenSearchOrchestratorPort 
           if (timeout) clearTimeout(timeout)
           timeout = setTimeout(() => {
             worker.removeEventListener('message', onMessage)
-            reject(new Error(`parallel worker timeout shard=${shardIndex}`))
+            reject(new Error(`parallel worker timeout task=${taskId}`))
           }, idleTimeoutMs)
         }
         armTimeout()
@@ -130,27 +131,51 @@ export class ZhushenSearchOrchestrator implements ZhushenSearchOrchestratorPort 
           if (event.data.id !== reqId) return
           if ('progress' in event.data) {
             armTimeout()
-            progressByShard.set(shardIndex, event.data.progress)
+            progressByTask.set(taskId, event.data.progress)
             updateAggregateProgress()
             return
           }
           if (timeout) clearTimeout(timeout)
           worker.removeEventListener('message', onMessage)
-          if (event.data.ok && 'result' in event.data) resolve(event.data.result)
-          else reject(new Error('error' in event.data ? event.data.error : 'parallel worker error'))
+          if (event.data.ok && 'result' in event.data) {
+            const prev = progressByTask.get(taskId)
+            if (prev) {
+              progressByTask.set(taskId, { ...prev, phase: 'completed', step: prev.totalSteps })
+            } else {
+              progressByTask.set(taskId, {
+                phase: 'completed',
+                step: input.search?.maxTransfer ? input.search.maxTransfer + 1 : 1,
+                totalSteps: input.search?.maxTransfer ? input.search.maxTransfer + 1 : 1,
+                beamSize: 0,
+                candidateSize: 0,
+                exploredStates: event.data.result.exploredStates,
+                prunedByDominance: event.data.result.prunedByDominance,
+                poolSize: 0,
+                compactionCount: 0,
+                poolPeak: 0,
+                stepMs: 0,
+                routeChecks: 0,
+                routePrunes: 0,
+                groupChecks: 0,
+                groupPrunes: 0,
+              })
+            }
+            updateAggregateProgress()
+            resolve(event.data.result)
+          } else reject(new Error('error' in event.data ? event.data.error : 'parallel worker error'))
         }
         worker.addEventListener('message', onMessage)
         worker.postMessage({ id: reqId, input: workerInput })
       })
 
-    const runners = Array.from({ length: workerCount }, (_, runnerId) => {
+    const runners = Array.from({ length: workerCount }, () => {
       const worker = this.makeWorker()
       this.parallelWorkers.push(worker)
       return (async () => {
         while (tasksQueue.length > 0) {
           const next = tasksQueue.shift()
           if (!next) break
-          const result = await runTask(worker, runnerId, next)
+          const result = await runTask(worker, next.taskId, next.firstStepJobIds)
           settled.push(result)
         }
       })()

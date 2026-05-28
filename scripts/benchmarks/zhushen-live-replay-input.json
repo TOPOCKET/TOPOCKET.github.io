@@ -1,0 +1,36 @@
+{
+  "id": "live_replay_v1",
+  "description": "real-world replay baseline (full jobs + high-risk search params)",
+  "input": {
+    "targetLevel": 150,
+    "initialJobId": "soldier",
+    "character": {
+      "base": { "str": 0, "tec": 0, "agi": 0, "con": 0, "per": 0, "wil": 0 },
+      "trait": { "str": 0, "tec": 0, "agi": 0, "con": 0, "per": 0, "wil": 0 },
+      "growth": { "str": 6, "tec": 4, "agi": 7, "con": 5, "per": 3, "wil": 2 }
+    },
+    "activeEquipIds": ["sword-king", "armor-guard"],
+    "activeSkillIds": ["nimble"],
+    "activeTraitIds": [],
+    "promotions": [
+      { "level": 1, "toJobId": "mercenary", "equipIds": ["sword-king", "ring-hawk", "fashion-crown"], "skillIds": ["focus"] },
+      { "level": 1, "toJobId": "royal-knight", "equipIds": ["sword-king", "armor-guard", "ring-hawk", "fashion-crown"], "skillIds": ["nimble", "fortitude"] }
+    ],
+    "ignorePromotionRequirements": false,
+    "search": {
+      "enabled": true,
+      "beamWidth": 2400,
+      "maxTransfer": 4,
+      "maxTierDelta": 2,
+      "maxSkillPerStep": 2,
+      "enableGroupMinorBucket": false,
+      "enableComboPriorityOrder": false,
+      "enableDynamicBeamShrink": false,
+      "enableMarginScreen": false,
+      "scorePreset": "sum",
+      "finalActiveEquipIds": ["sword-king", "armor-guard"],
+      "finalActiveSkillIds": ["nimble"],
+      "targetFinalJobId": "royal-knight"
+    }
+  }
+}

@@ -65,6 +65,9 @@ const beamWidth = ref(SEARCH_RUNTIME_CONFIG.beamWidthDefault)
 const maxTransfer = ref(SEARCH_RUNTIME_CONFIG.maxTransferDefault)
 const maxTierDelta = ref(SEARCH_RUNTIME_CONFIG.maxTierDeltaDefault)
 const maxSkillPerStep = ref(SEARCH_RUNTIME_CONFIG.maxSkillPerStepDefault)
+type SearchProfile = 'safe' | 'balanced' | 'aggressive'
+const searchProfile = ref<SearchProfile>('balanced')
+const aggressiveConfirmed = ref(false)
 const scorePreset = ref<ScorePreset>('sum')
 const searchFinalEquipIds = ref<string[]>(['sword-king', 'armor-guard'])
 const searchFinalSkillIds = ref<string[]>(['nimble'])
@@ -141,6 +144,38 @@ const filteredPromoEquips = computed(() =>
 const filteredPromoSkills = computed(() =>
   promoSkillFilter.value === 'all' ? skills.value : skills.value.filter((s) => s.category === promoSkillFilter.value),
 )
+const searchRiskWarning = computed(() => {
+  if (!searchEnabled.value) return ''
+  if (beamWidth.value > 1200 && maxTransfer.value >= 6) return '当前参数组合可能导致搜索规模激增（Beam>1200 且 最大转职>=6）。'
+  if (maxTransfer.value >= 8) return '最大转职过高，建议控制在 4~6 以内。'
+  if (maxSkillPerStep.value >= 3 && maxTransfer.value >= 5) return '步内技能与转职上限同时偏高，容易触发分支爆炸。'
+  return ''
+})
+const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value))
+const constrainedSearchParams = computed(() => {
+  if (searchProfile.value === 'safe') {
+    return {
+      beamWidth: clamp(beamWidth.value, 10, 800),
+      maxTransfer: clamp(maxTransfer.value, 0, 4),
+      maxTierDelta: clamp(maxTierDelta.value, 0, 2),
+      maxSkillPerStep: clamp(maxSkillPerStep.value, 0, 1),
+    }
+  }
+  if (searchProfile.value === 'balanced') {
+    return {
+      beamWidth: clamp(beamWidth.value, 10, 1200),
+      maxTransfer: clamp(maxTransfer.value, 0, 6),
+      maxTierDelta: clamp(maxTierDelta.value, 0, 2),
+      maxSkillPerStep: clamp(maxSkillPerStep.value, 0, 2),
+    }
+  }
+  return {
+    beamWidth: clamp(beamWidth.value, 10, 5000),
+    maxTransfer: clamp(maxTransfer.value, 0, 20),
+    maxTierDelta: clamp(maxTierDelta.value, 0, 3),
+    maxSkillPerStep: clamp(maxSkillPerStep.value, 0, 3),
+  }
+})
 const jobNameById = computed(() => new Map(jobs.value.map((j) => [j.id, j.name])))
 
 const newJobJson = ref(
@@ -231,10 +266,10 @@ const buildInput = (): SimulationInput => {
   ignorePromotionRequirements: ignorePromotionRequirements.value,
   search: {
     enabled: searchEnabled.value,
-    beamWidth: beamWidth.value,
-    maxTransfer: maxTransfer.value,
-    maxTierDelta: maxTierDelta.value,
-    maxSkillPerStep: maxSkillPerStep.value,
+    beamWidth: constrainedSearchParams.value.beamWidth,
+    maxTransfer: constrainedSearchParams.value.maxTransfer,
+    maxTierDelta: constrainedSearchParams.value.maxTierDelta,
+    maxSkillPerStep: constrainedSearchParams.value.maxSkillPerStep,
     scorePreset: scorePreset.value,
     finalActiveEquipIds: safeSearchFinalEquipIds,
     finalActiveSkillIds: safeSearchFinalSkillIds,
@@ -288,8 +323,15 @@ watch(
   },
   { immediate: true },
 )
+watch(searchProfile, (next) => {
+  if (next !== 'aggressive') aggressiveConfirmed.value = false
+})
 
 const calculate = async () => {
+  if (searchEnabled.value && searchProfile.value === 'aggressive' && !aggressiveConfirmed.value) {
+    dispatchUiEvent({ type: 'selection_error_set', message: '激进档需要先勾选确认后再执行计算' })
+    return
+  }
   dispatchUiEvent({ type: 'calculation_started' })
   try {
     const parsed = zhushenSimulationInputSchema.parse(buildInput())
@@ -494,6 +536,7 @@ onBeforeUnmount(() => {
       <div class="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <label class="text-xs">启用<select v-model="searchEnabled" class="ui-input mt-1 w-full px-2 py-1"><option :value="true">true</option><option :value="false">false</option></select></label>
         <label class="text-xs">忽略转职条件<select v-model="ignorePromotionRequirements" class="ui-input mt-1 w-full px-2 py-1"><option :value="true">true</option><option :value="false">false</option></select></label>
+        <label class="text-xs">参数档位<select v-model="searchProfile" class="ui-input mt-1 w-full px-2 py-1"><option value="safe">safe</option><option value="balanced">balanced</option><option value="aggressive">aggressive</option></select></label>
         <label class="text-xs">Beam<input v-model.number="beamWidth" type="number" min="10" max="5000" class="ui-input mt-1 w-full px-2 py-1" /></label>
         <label class="text-xs">最大转职<input v-model.number="maxTransfer" type="number" min="0" max="20" class="ui-input mt-1 w-full px-2 py-1" /></label>
         <label class="text-xs">跨阶<input v-model.number="maxTierDelta" type="number" min="0" max="3" class="ui-input mt-1 w-full px-2 py-1" /></label>
@@ -503,6 +546,14 @@ onBeforeUnmount(() => {
         <div class="text-xs"><p>搜索最终装备</p><div class="mt-1 max-h-24 overflow-auto ui-input px-2 py-1"><label v-for="e in equips" :key="e.id" class="mr-3 inline-flex items-center gap-1"><input type="checkbox" :checked="searchFinalEquipIds.includes(e.id)" @change="() => { const next = enforceEquipSlots(toggle(searchFinalEquipIds, e.id), '搜索最终装备'); if (next) searchFinalEquipIds = next }" />{{ e.name }} ({{ equipSlotLabel[e.slot] }})</label></div></div>
         <div class="text-xs"><p>搜索最终技能</p><div class="mt-1 max-h-24 overflow-auto ui-input px-2 py-1"><label v-for="s in skills" :key="s.id" class="mr-3 inline-flex items-center gap-1"><input type="checkbox" :checked="searchFinalSkillIds.includes(s.id)" @change="() => { const next = enforceSkillMax3(toggle(searchFinalSkillIds, s.id), '搜索最终技能'); if (next) searchFinalSkillIds = next }" />{{ s.name }} ({{ attrLabel[s.category] }})</label></div></div>
       </div>
+      <p v-if="searchRiskWarning" class="mt-2 text-xs text-[var(--warn-text)]">{{ searchRiskWarning }}</p>
+      <p class="mt-1 text-xs text-[var(--text-muted)]">
+        生效参数: Beam={{ constrainedSearchParams.beamWidth }} / 最大转职={{ constrainedSearchParams.maxTransfer }} / 跨阶={{ constrainedSearchParams.maxTierDelta }} / 步内技能={{ constrainedSearchParams.maxSkillPerStep }}
+      </p>
+      <label v-if="searchProfile === 'aggressive'" class="mt-1 inline-flex items-center gap-2 text-xs text-[var(--warn-text)]">
+        <input v-model="aggressiveConfirmed" type="checkbox" />
+        我已确认激进档可能导致耗时显著增加
+      </label>
     </section>
 
     <section class="surface-card mb-4 p-4">

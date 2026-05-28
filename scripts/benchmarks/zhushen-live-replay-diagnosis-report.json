@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-05-28T10:06:56.491Z",
+  "inputReport": "scripts\\benchmarks\\zhushen-engine-replay-calibration-report.json",
+  "summary": {
+    "durationMsMedian": 5573.11,
+    "volatility": "insufficient",
+    "volatilityRatio": 0,
+    "recentDurations": [
+      5573.11
+    ]
+  },
+  "phaseShare": [
+    {
+      "key": "promoEnumMs",
+      "ms": 4149,
+      "ratioVsDuration": 0.7445
+    },
+    {
+      "key": "comboCheckMs",
+      "ms": 2462,
+      "ratioVsDuration": 0.4418
+    },
+    {
+      "key": "scoreRankMs",
+      "ms": 354,
+      "ratioVsDuration": 0.0635
+    },
+    {
+      "key": "routePruneMs",
+      "ms": 0,
+      "ratioVsDuration": 0
+    },
+    {
+      "key": "groupPruneMs",
+      "ms": 0,
+      "ratioVsDuration": 0
+    }
+  ],
+  "metrics": {
+    "durationMsMedian": 5573.11,
+    "exploredStates": 260733,
+    "prunedByDominance": 0,
+    "comboTried": 323359,
+    "comboPassed": 253426,
+    "routeChecks": 70810,
+    "groupChecks": 1299403,
+    "comboPassRate": 0.7837,
+    "groupPerRoute": 18.3506,
+    "prunedRatio": 0
+  },
+  "profileHint": [],
+  "strategyHints": [
+    "优先做“枚举前硬剪枝/上界门禁”，先压 comboTried 与 routeChecks。",
+    "group 比较仍重，需继续限域候选池，但避免高维护索引结构。"
+  ]
+}

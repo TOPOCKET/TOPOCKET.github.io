@@ -53,13 +53,19 @@ export interface PromotionStep {
 }
 
 export type ScorePreset = 'sum' | 'str_first' | 'agi_first' | 'balanced'
+export type SearchEngineType = 'astar_bnb_mvp'
 
 export interface SearchConfig {
   enabled: boolean
+  engine?: SearchEngineType
   beamWidth: number
   maxTransfer: number
   maxTierDelta: number
   maxSkillPerStep: number
+  enableGroupMinorBucket?: boolean
+  enableComboPriorityOrder?: boolean
+  enableDynamicBeamShrink?: boolean
+  enableMarginScreen?: boolean
   scorePreset: ScorePreset
   scoreWeights?: Partial<AttrVector>
   finalActiveEquipIds: string[]
@@ -104,6 +110,17 @@ export interface SearchResult {
   topPlans: SearchPlan[]
   exploredStates: number
   prunedByDominance: number
+  perfBreakdown?: {
+    promoEnumMs: number
+    comboCheckMs: number
+    routePruneMs: number
+    groupPruneMs: number
+    scoreRankMs: number
+    comboTried: number
+    comboPassed: number
+    routeChecks: number
+    groupChecks: number
+  }
 }
 
 export interface SearchProgress {
@@ -122,6 +139,23 @@ export interface SearchProgress {
   routePrunes: number
   groupChecks: number
   groupPrunes: number
+  stepDetail?: {
+    considered: number
+    terminalConsidered: number
+    promoConsidered: number
+    comboTried: number
+    comboPassed: number
+    routeChecks: number
+    routePrunes: number
+    groupChecks: number
+    groupPrunes: number
+    terminalMs: number
+    promoEnumMs: number
+    comboCheckMs: number
+    routePruneMs: number
+    groupPruneMs: number
+    scoreRankMs: number
+  }
 }
 
 const SCALE = 10000
@@ -205,10 +239,15 @@ export const zhushenSimulationInputSchema: z.ZodType<SimulationInput> = z.object
   search: z
     .object({
       enabled: z.boolean().default(true),
+      engine: z.literal('astar_bnb_mvp').default('astar_bnb_mvp'),
       beamWidth: z.number().int().min(10).max(5000).default(SEARCH_RUNTIME_CONFIG.beamWidthDefault),
       maxTransfer: z.number().int().min(0).max(20).default(SEARCH_RUNTIME_CONFIG.maxTransferDefault),
       maxTierDelta: z.number().int().min(0).max(3).default(SEARCH_RUNTIME_CONFIG.maxTierDeltaDefault),
       maxSkillPerStep: z.number().int().min(0).max(3).default(SEARCH_RUNTIME_CONFIG.maxSkillPerStepDefault),
+      enableGroupMinorBucket: z.boolean().default(false),
+      enableComboPriorityOrder: z.boolean().default(false),
+      enableDynamicBeamShrink: z.boolean().default(false),
+      enableMarginScreen: z.boolean().default(false),
       scorePreset: z.enum(['sum', 'str_first', 'agi_first', 'balanced']).default('sum'),
       scoreWeights: vecSchema.partial().optional(),
       finalActiveEquipIds: z.array(z.string()).default([]),

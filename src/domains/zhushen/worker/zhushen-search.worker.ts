@@ -2,7 +2,7 @@
  * @file zhushen-search.worker 文件说明。
  * @description 诸神搜索 Worker 线程入口。
  */
-import { searchZhushenPlans } from '@/domains/zhushen/engine/simulator-core'
+import { searchZhushenPlansByEngine } from '@/domains/zhushen/engine/search-engine'
 import { zhushenSimulationInputSchema } from '@/domains/zhushen/model/zhushen-model'
 import { loadZhushenWasmCore } from '@/domains/zhushen/wasm/zhushen-wasm'
 import { SEARCH_RUNTIME_CONFIG } from '@/config/search'
@@ -21,7 +21,7 @@ self.onmessage = async (event: MessageEvent<ZhushenSearchWorkerRequest>) => {
     const parsed = zhushenSimulationInputSchema.parse(input)
     if (!wasmCorePromise) wasmCorePromise = loadZhushenWasmCore()
     const wasmCore = await wasmCorePromise
-    const result = await searchZhushenPlans(
+    const result = await searchZhushenPlansByEngine(
       parsed,
       (progress) => {
         const payload: ZhushenSearchWorkerProgressResponse = { id, ok: true, progress }

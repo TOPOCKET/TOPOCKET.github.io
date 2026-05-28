@@ -1,33 +1,47 @@
-# 文档系统总览（Docs IA）
+# 文档系统总览
 
-本目录采用“**总规范 + 主题规范 + 历史归档**”三层结构，目标是让文档可扩展、可检索、可维护。
+为减少维护成本，文档体系收敛为两层：`规范` 与 `归档`。
 
-## 1) 总规范（必须遵循）
+## 当前状态（诸神模拟器）
+
+- 搜索主线已固定为单引擎：`astar_bnb_mvp`。
+- 旧技术线与旧对比测试已清理，后续以当前 A* 基线继续优化。
+- 回放基线入口：`npm run benchmark:zhushen:engines:replay`。
+- 一键回放+诊断：`npm run benchmark:zhushen:replay:full`。
+- 对比口径：A* 实测 vs `beam` 固定历史基线（只作对照，不再参与线上分流）。
+
+## 当前性能基线（live_replay_v1）
+
+- 报告：`scripts/benchmarks/zhushen-engine-replay-calibration-report.json`
+- 基线指标（最新 3 轮中位数）：
+  - `astar medianMs=4893.15`
+  - `bestScore=2646.422`
+  - `routeSignature=4:priest|147:magic-archer|149:royal-knight`
+  - `comboTried=323359`
+  - `routeChecks=70810`
+
+## 规范文档（长期维护）
 
 - [vibeCodingCopy.md](./vibeCodingCopy.md)  
-  项目唯一总规范。涉及工程、架构、样式、注释、流程的最终约束均以此为准。
-
-## 2) 主题规范（可扩展）
-
+  项目总规范（最高优先级）
+- [reference/zhushen-requirements.md](./reference/zhushen-requirements.md)  
+  诸神模拟器需求基线
 - [reference/storage.md](./reference/storage.md)  
-  数据与工具持久化规范（key、schema、写入策略、迁移策略、接入清单）。
-
+  存储规范
 - [reference/ui-semantics.md](./reference/ui-semantics.md)  
-  UI 语义类、动效层级、光斑系统与视觉一致性规范。
-
+  UI 语义规范
 - [reference/wasm.md](./reference/wasm.md)  
-  WASM 源码与发布产物边界、构建与发布流程。
+  WASM 规范
 
-## 3) 历史归档
+## 归档文档（历史记录）
 
-- [archive/completed-work-archive.md](./archive/completed-work-archive.md)
-- [archive/architecture-upgrade-plan-archive.md](./archive/architecture-upgrade-plan-archive.md)
-- [archive/observability-roadmap-archive.md](./archive/observability-roadmap-archive.md)
+- [archive/README.md](./archive/README.md)  
+  归档总入口（先看此页，再进入具体归档）
+- [archive/completed-work-archive.md](./archive/completed-work-archive.md)  
+  已完成优化路线与实施记录（主归档）
 
-## 4) 扩展规则
+## 维护规则
 
-新增文档时遵循：
-
-1. 通用硬约束写入 `vibeCodingCopy.md`（或先提案后并入）。
-2. 领域细则优先放入 `reference/<topic>.md`。
-3. 一次性执行记录、阶段性路线放入归档文档，不堆积到 README。
+1. README 只保留项目入口与临时优化路线，不堆积过程日志。  
+2. 规范变更写入 `reference/*` 或 `vibeCodingCopy.md`。  
+3. 阶段完成后将优化过程迁移到 `archive/completed-work-archive.md`。  

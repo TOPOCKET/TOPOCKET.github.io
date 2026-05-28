@@ -1,0 +1,11 @@
+{
+  "items": [
+    {
+      "generatedAt": "2026-05-28T10:06:55.713Z",
+      "durationMsMedian": 5573.11,
+      "exploredStates": 260733,
+      "routeChecks": 70810,
+      "groupChecks": 1299403
+    }
+  ]
+}
