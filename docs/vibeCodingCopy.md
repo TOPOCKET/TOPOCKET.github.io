@@ -1,6 +1,6 @@
 ## 1. 项目目标
 - 构建个人小工具集合站（SPA），首页为工具导航面板。
-- 每个工具独立模块化（计算器、小游戏、提示词库、链接页）。
+- 每个工具独立模块化（计算器、提示词库、链接页等）。
 - 以配置驱动扩展内容，避免页面写死。
 
 ## 2. 技术栈与部署
@@ -21,7 +21,6 @@ src/
   domains/             # 业务域（页面/模型/服务/引擎）
   shared/              # 跨域共享（ui/style/persistence/schema/types/utils）
   data/                # tools/prompts/links 配置数据
-  cheats/              # 作弊码能力
   types/               # 类型定义
 public/
   icons/

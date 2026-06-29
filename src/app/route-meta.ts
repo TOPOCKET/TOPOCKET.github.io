@@ -5,8 +5,6 @@
 import type { RouteRecordRaw } from 'vue-router'
 import { HomePage } from '@domains/home'
 import { LinksPage } from '@domains/links'
-import { MemoryMatchPage } from '@domains/games/memory-match'
-import { MiniGame2048Page } from '@domains/games/game-2048'
 import { PromptsPage } from '@domains/prompts'
 import { ZhushenSimulatorPage } from '@domains/zhushen'
 
@@ -68,28 +66,6 @@ export const appRoutes: RouteRecordRaw[] = [
       icon: 'calculator',
       permission: 'public',
       order: 4,
-    },
-  },
-  {
-    path: '/tools/mini-game-2048',
-    name: 'mini-game-2048',
-    component: MiniGame2048Page,
-    meta: {
-      title: '2048 Mini',
-      icon: 'gamepad-2',
-      permission: 'public',
-      order: 5,
-    },
-  },
-  {
-    path: '/tools/memory-match',
-    name: 'memory-match',
-    component: MemoryMatchPage,
-    meta: {
-      title: 'Memory Match',
-      icon: 'cards',
-      permission: 'public',
-      order: 6,
     },
   },
 ]

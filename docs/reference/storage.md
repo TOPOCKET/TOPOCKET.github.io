@@ -30,24 +30,14 @@
   - 读取旧 key `sopronwitta:prefs`
   - 校验通过后回写 `v1`
 
-### 2) 2048 状态（2048 State）
-
-- Key：`sopronwitta:tool:2048:v1`
-- Store：`src/domains/games/game-2048/services/game2048-store.ts`
-- Schema：`game2048Schema`
-- 默认值：`board/score/best/won/gameOver`
-- 写入策略：
-  - 高频更新节流写入（默认 `300ms`）
-  - 页面卸载前强制保存
-
-### 3) 常用链接数据（Links Data）
+### 2) 常用链接数据（Links Data）
 
 - Key：`sopronwitta:links:v1`
 - Store：`src/domains/links/services/links-store.ts`
 - Schema：`quickLinkListSchema`
 - 默认值：`src/data/links.ts` 的 `defaultQuickLinks`
 
-### 4) 诸神自定义数据（Zhushen Custom Data）
+### 3) 诸神自定义数据（Zhushen Custom Data）
 
 - Key：`sopronwitta:tool:zhushen:custom:v1`
 - Store：`src/domains/zhushen/services/zhushen-custom-store.ts`

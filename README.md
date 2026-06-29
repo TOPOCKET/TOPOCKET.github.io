@@ -1,6 +1,6 @@
 # Sopronwitta
 
-个人小工具集合站（SPA），基于 `Vue 3 + TypeScript + Vite`，面向静态部署（GitHub Pages）。
+个人小工具集合站（SPA），基于 `Vue 3 + TypeScript + Vite`，面向静态部署（GitHub Pages），当前聚焦实用工具、提示词与链接导航。
 
 ## 快速开始
 
@@ -29,8 +29,6 @@ npm run build
 - 首页工具导航（搜索 / 分类）
 - 提示词模板页（搜索 / 复制）
 - 常用链接页（分组展示）
-- 2048 Mini
-- Memory Match
 - 诸神皇冠培养模拟器（含 Worker + WASM）
 
 ## 文档体系（统一入口）
@@ -45,7 +43,6 @@ src/
   app/                # 路由与 route-meta
   domains/            # 业务域（页面与域内逻辑）
   shared/             # 跨域共享门面
-  cheats/             # 作弊码能力
   config/             # 运行时配置
   data/               # 配置数据与 schema
   shared/style/       # tokens + components
