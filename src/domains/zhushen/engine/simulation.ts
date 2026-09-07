@@ -4,7 +4,7 @@
  */
 import type { SimulationInput, SimulationResult } from '@/domains/zhushen/model/zhushen-model'
 import type { ZhushenSimulationPort } from '@/domains/zhushen/ports'
-import { simulateZhushen } from './simulator-core'
+import { simulateZhushen } from './simulation-runner'
 
 const defaultSimulationPort: ZhushenSimulationPort = {
   runSimulation: (input) => simulateZhushen(input),

@@ -3,7 +3,6 @@
  * @description 诸神搜索 Worker 线程入口。
  */
 import { searchZhushenPlansByEngine } from '@/domains/zhushen/engine/search-engine'
-import { zhushenSimulationInputSchema } from '@/domains/zhushen/model/zhushen-model'
 import { loadZhushenWasmCore } from '@/domains/zhushen/wasm/zhushen-wasm'
 import { SEARCH_RUNTIME_CONFIG } from '@/config/search'
 import type {
@@ -18,11 +17,10 @@ let wasmCorePromise: Promise<Awaited<ReturnType<typeof loadZhushenWasmCore>>> | 
 self.onmessage = async (event: MessageEvent<ZhushenSearchWorkerRequest>) => {
   const { id, input } = event.data
   try {
-    const parsed = zhushenSimulationInputSchema.parse(input)
     if (!wasmCorePromise) wasmCorePromise = loadZhushenWasmCore()
     const wasmCore = await wasmCorePromise
     const result = await searchZhushenPlansByEngine(
-      parsed,
+      input,
       (progress) => {
         const payload: ZhushenSearchWorkerProgressResponse = { id, ok: true, progress }
         self.postMessage(payload)
@@ -35,7 +33,7 @@ self.onmessage = async (event: MessageEvent<ZhushenSearchWorkerRequest>) => {
     const payload: ZhushenSearchWorkerErrorResponse = {
       id,
       ok: false,
-      error: error instanceof Error ? error.message : 'worker search error',
+      error: error instanceof Error ? error.message : 'search error',
     }
     self.postMessage(payload)
   }

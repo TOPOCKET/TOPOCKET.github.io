@@ -75,7 +75,7 @@ interface CoreExports {
  */
 export const loadZhushenWasmCore = async (): Promise<ZhushenWasmCore> => {
   const resp = await fetch('/wasm/zhushen_core.wasm')
-  if (!resp.ok) throw new Error(`failed to fetch wasm: ${resp.status}`)
+  if (!resp.ok) throw new Error(`wasm fetch failed: ${resp.status}`)
   const bytes = await resp.arrayBuffer()
   const { instance } = await WebAssembly.instantiate(bytes, {})
   const exports = instance.exports as unknown as CoreExports

@@ -2,645 +2,71 @@
  * @file zhushen-simulator 文件说明。
  * @description 核心业务算法、搜索计算与性能优化逻辑。
  */
-import { z } from 'zod'
 import { SEARCH_RUNTIME_CONFIG } from '@/config/search'
+import {
+  ATTR_KEYS,
+  addVec,
+  formatVec,
+  zeroVec,
+  type PromotionStep,
+  type SearchProgress,
+  type SearchResult,
+  type SimulationInput,
+} from '@/domains/zhushen/model/zhushen-model'
 import { compactStatePool, MAX_TRANSFER_COUNT, SoAStatePool, type Vec6 } from '@/domains/zhushen/state-pool/soa-state-pool'
 import { filterDominatedByTiming, majorBucket, quantSig, routeHashNext } from '@/domains/zhushen/pruning/search-pruning'
+import type { SearchRuntimeOptions } from './search-runtime'
+import {
+  addMany,
+  levelFactor,
+  MAX_LEVEL,
+  round4,
+  sumStatsByIds,
+  toFixed4Vec,
+  validateSingleEquipPerSlot,
+  validateSkillCount,
+} from './simulation-helpers'
+import { buildEquipLoadouts, buildPromoLevelCandidates, combinations } from './search-combinations'
+import {
+  addMulVec6Into,
+  addVec6From,
+  addVec6Into,
+  attrFromVec6,
+  dominatesVec6,
+  factorPrefix,
+  factorRange,
+  geVec6,
+  scoreVec6,
+  vec6,
+  vec6FromAttr,
+} from './search-vectors'
 
-/**
- * ATTR_KEYS 导出定义。
- * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
- */
-export const ATTR_KEYS = ['str', 'tec', 'agi', 'con', 'per', 'wil'] as const
+export { ATTR_KEYS, addVec, formatVec, zeroVec }
+export { simulateZhushen } from './simulation-runner'
+export type {
+  AttrKey,
+  AttrVector,
+  CharacterDef,
+  EquipDef,
+  JobDef,
+  PromotionStep,
+  ScorePreset,
+  SearchConfig,
+  SearchPlan,
+  SearchProgress,
+  SearchResult,
+  SimulationInput,
+  SimulationResult,
+  SkillDef,
+  TraitDef,
+} from '@/domains/zhushen/model/zhushen-model'
+export type { SearchRuntimeOptions } from './search-runtime'
 
-/**
- * AttrKey 类型定义。
- * @remarks 该类型用于约束调用边界，变更时请检查上下游类型推断与兼容性。
- */
-export type AttrKey = (typeof ATTR_KEYS)[number]
-
-/**
- * AttrVector 类型定义。
- * @remarks 该类型用于约束调用边界，变更时请检查上下游类型推断与兼容性。
- */
-export type AttrVector = Record<AttrKey, number>
-
-/**
- * JobDef 接口定义。
- * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
- */
-export interface JobDef {
-  id: string
-  name: string
-  tier: number
-  panel: AttrVector
-  growth: AttrVector
-  require: AttrVector
-}
-
-/**
- * EquipDef 接口定义。
- * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
- */
-export interface EquipDef {
-  id: string
-  name: string
-  slot: 'main_hand' | 'off_hand' | 'helmet' | 'armor' | 'shoes' | 'accessory' | 'head_fashion' | 'armor_fashion'
-  stat: AttrVector
-}
-
-/**
- * SkillDef 接口定义。
- * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
- */
-export interface SkillDef {
-  id: string
-  name: string
-  category: AttrKey
-  stat: AttrVector
-}
-
-/**
- * TraitDef 接口定义。
- * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
- */
-export interface TraitDef {
-  id: string
-  name: string
-  slot: 'face' | 'nose' | 'hair' | 'eyes' | 'eyebrow' | 'ears' | 'stigma' | 'quasi_stigma' | 'learning'
-  stat: AttrVector
-}
-
-/**
- * CharacterDef 接口定义。
- * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
- */
-export interface CharacterDef {
-  base: AttrVector
-  trait: AttrVector
-  growth: AttrVector
-}
-
-/**
- * PromotionStep 接口定义。
- * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
- */
-export interface PromotionStep {
-  level: number
-  toJobId: string
-  equipIds: string[]
-  skillIds: string[]
-}
-
-/**
- * ScorePreset 类型定义。
- * @remarks 该类型用于约束调用边界，变更时请检查上下游类型推断与兼容性。
- */
-export type ScorePreset = 'sum' | 'str_first' | 'agi_first' | 'balanced'
-
-/**
- * SearchConfig 接口定义。
- * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
- */
-export interface SearchConfig {
-  enabled: boolean
-  beamWidth: number
-  maxTransfer: number
-  maxTierDelta: number
-  maxSkillPerStep: number
-  enableGroupMinorBucket?: boolean
-  enableComboPriorityOrder?: boolean
-  enableDynamicBeamShrink?: boolean
-  enableMarginScreen?: boolean
-  scorePreset: ScorePreset
-  scoreWeights?: Partial<AttrVector>
-  finalActiveEquipIds: string[]
-  finalActiveSkillIds: string[]
-  targetFinalJobId?: string
-  firstStepJobIds?: string[]
-}
-
-/**
- * SimulationInput 接口定义。
- * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
- */
-export interface SimulationInput {
-  targetLevel: number
-  initialJobId: string
-  character: CharacterDef
-  jobs: JobDef[]
-  equips: EquipDef[]
-  skills: SkillDef[]
-  traits: TraitDef[]
-  activeEquipIds: string[]
-  activeSkillIds: string[]
-  activeTraitIds: string[]
-  promotions: PromotionStep[]
-  search?: SearchConfig
-  ignorePromotionRequirements?: boolean
-}
-
-/**
- * SimulationResult 接口定义。
- * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
- */
-export interface SimulationResult {
-  final: AttrVector
-  growthAcc: AttrVector
-  currentJob: JobDef
-  logs: string[]
-}
-
-/**
- * SearchPlan 接口定义。
- * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
- */
-export interface SearchPlan {
-  rank: number
-  score: number
-  final: AttrVector
-  currentJob: JobDef
-  promotions: PromotionStep[]
-  logs: string[]
-}
-
-/**
- * SearchResult 接口定义。
- * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
- */
-export interface SearchResult {
-  topPlans: SearchPlan[]
-  exploredStates: number
-  prunedByDominance: number
-  perfBreakdown?: {
-    promoEnumMs: number
-    comboCheckMs: number
-    routePruneMs: number
-    groupPruneMs: number
-    scoreRankMs: number
-    comboTried: number
-    comboPassed: number
-    routeChecks: number
-    groupChecks: number
-  }
-}
-
-/**
- * SearchProgress 接口定义。
- * @remarks 该接口用于跨模块数据交换，字段变更需同步校验层与持久化层。
- */
-export interface SearchProgress {
-  phase: 'running' | 'completed'
-  step: number
-  totalSteps: number
-  beamSize: number
-  candidateSize: number
-  exploredStates: number
-  prunedByDominance: number
-  poolSize: number
-  compactionCount: number
-  poolPeak: number
-  stepMs: number
-  routeChecks: number
-  routePrunes: number
-  groupChecks: number
-  groupPrunes: number
-  stepDetail?: {
-    considered: number
-    terminalConsidered: number
-    promoConsidered: number
-    comboTried: number
-    comboPassed: number
-    routeChecks: number
-    routePrunes: number
-    groupChecks: number
-    groupPrunes: number
-    terminalMs: number
-    promoEnumMs: number
-    comboCheckMs: number
-    routePruneMs: number
-    groupPruneMs: number
-    scoreRankMs: number
-  }
-}
-
-export interface SearchRuntimeOptions {
-  yieldEvery?: number
-  bnbLowerBoundScore?: number
-  bnbUpperScoreCache?: Map<string, number>
-  wasmCore?: {
-    scoreBatch: (
-      stats: Float32Array,
-      stateCount: number,
-      mode: number,
-      weights?: [number, number, number, number, number, number],
-    ) => Float32Array
-    pruneFlags: (batchStats: Float32Array, candidate: Float32Array) => { domByBatch: Uint8Array; domByCandidate: Uint8Array }
-    routePruneFlags: (
-      batchCodes: Uint16Array,
-      batchStats: Float32Array,
-      codeWidth: number,
-      transferCount: number,
-      candidateCode: Uint16Array,
-      candidate: Float32Array,
-    ) => { domByBatch: Uint8Array; domByCandidate: Uint8Array }
-    comboPassFlags: (
-      panel: Float32Array,
-      equipStats: Float32Array,
-      equipCount: number,
-      skillStats: Float32Array,
-      skillCount: number,
-      require: Float32Array,
-    ) => Uint8Array
-  } | null
-}
-
-const MIN_LEVEL = 1
-const MAX_LEVEL = 150
 const ROUTE_WASM_THRESHOLD = SEARCH_RUNTIME_CONFIG.routeWasmThreshold
 const GROUP_WASM_THRESHOLD = SEARCH_RUNTIME_CONFIG.groupWasmThreshold
 const GROUP_COMPARE_CAP = 128
 
-const SCALE = 10000
-const round4 = (value: number): number => Math.round((value + Number.EPSILON) * SCALE) / SCALE
-
-/**
- * zeroVec。
- * @return 返回该函数的业务处理结果。
- * @remarks 该函数属于公共导出能力，修改行为时需同步更新调用方、测试与文档。
- */
-export const zeroVec = (): AttrVector => ({ str: 0, tec: 0, agi: 0, con: 0, per: 0, wil: 0 })
-
-/**
- * addVec。
- * @param a 比较或计算左值。
- * @param b 比较或计算右值。
- * @return 返回该函数的业务处理结果。
- * @remarks 该函数属于公共导出能力，修改行为时需同步更新调用方、测试与文档。
- */
-export const addVec = (a: AttrVector, b: AttrVector): AttrVector => {
-  const out = zeroVec()
-  for (const key of ATTR_KEYS) out[key] = round4(a[key] + b[key])
-  return out
-}
-
-const mulVec = (a: AttrVector, m: number): AttrVector => {
-  const out = zeroVec()
-  for (const key of ATTR_KEYS) out[key] = round4(a[key] * m)
-  return out
-}
-
-const addMany = (vectors: AttrVector[]): AttrVector => vectors.reduce((acc, it) => addVec(acc, it), zeroVec())
-const vecGE = (a: AttrVector, b: AttrVector): boolean => ATTR_KEYS.every((key) => a[key] >= b[key])
-const toFixed4Vec = (v: AttrVector): AttrVector => {
-  const out = zeroVec()
-  for (const key of ATTR_KEYS) out[key] = Number(v[key].toFixed(4))
-  return out
-}
-
-/**
- * formatVec。
- * @param v 待格式化的属性向量。
- * @return 返回用于展示的格式化结果。
- * @remarks 该函数属于公共导出能力，修改行为时需同步更新调用方、测试与文档。
- */
-export const formatVec = (v: AttrVector): string =>
-  `力量 ${v.str.toFixed(4)} | 技巧 ${v.tec.toFixed(4)} | 敏捷 ${v.agi.toFixed(4)} | 体质 ${v.con.toFixed(4)} | 感知 ${v.per.toFixed(4)} | 意志 ${v.wil.toFixed(4)}`
-
-const vecSchema = z.object({
-  str: z.number(),
-  tec: z.number(),
-  agi: z.number(),
-  con: z.number(),
-  per: z.number(),
-  wil: z.number(),
-})
-
-const equipSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  slot: z.enum(['main_hand', 'off_hand', 'helmet', 'armor', 'shoes', 'accessory', 'head_fashion', 'armor_fashion']),
-  stat: vecSchema,
-})
-const skillSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  category: z.enum(ATTR_KEYS),
-  stat: vecSchema,
-})
-const traitSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  slot: z.enum(['face', 'nose', 'hair', 'eyes', 'eyebrow', 'ears', 'stigma', 'quasi_stigma', 'learning']),
-  stat: vecSchema,
-})
-const jobSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  tier: z.number().int().min(0).default(0),
-  panel: vecSchema,
-  growth: vecSchema,
-  require: vecSchema,
-})
-
-/**
- * zhushenJobListSchema 导出定义。
- * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
- */
-export const zhushenJobListSchema = z.array(jobSchema)
-
-/**
- * zhushenEquipListSchema 导出定义。
- * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
- */
-export const zhushenEquipListSchema = z.array(equipSchema)
-
-/**
- * zhushenSkillListSchema 导出定义。
- * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
- */
-export const zhushenSkillListSchema = z.array(skillSchema)
-
-/**
- * zhushenTraitListSchema 导出定义。
- * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
- */
-export const zhushenTraitListSchema = z.array(traitSchema)
-
-/**
- * zhushenSimulationInputSchema 导出定义。
- * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
- */
-export const zhushenSimulationInputSchema: z.ZodType<SimulationInput> = z.object({
-  targetLevel: z.number().int().min(MIN_LEVEL).max(MAX_LEVEL),
-  initialJobId: z.string().min(1),
-  character: z.object({
-    base: vecSchema,
-    trait: vecSchema,
-    growth: vecSchema,
-  }),
-  jobs: zhushenJobListSchema,
-  equips: zhushenEquipListSchema,
-  skills: zhushenSkillListSchema,
-  traits: zhushenTraitListSchema,
-  activeEquipIds: z.array(z.string().min(1)),
-  activeSkillIds: z.array(z.string().min(1)),
-  activeTraitIds: z.array(z.string().min(1)),
-  promotions: z.array(
-    z.object({
-      level: z.number().int().min(MIN_LEVEL).max(MAX_LEVEL),
-      toJobId: z.string().min(1),
-      equipIds: z.array(z.string().min(1)),
-      skillIds: z.array(z.string().min(1)),
-    }),
-  ),
-  search: z
-    .object({
-      enabled: z.boolean().default(false),
-      beamWidth: z.number().int().min(10).max(5000).default(SEARCH_RUNTIME_CONFIG.beamWidthDefault),
-      maxTransfer: z.number().int().min(0).max(20).default(SEARCH_RUNTIME_CONFIG.maxTransferDefault),
-      maxTierDelta: z.number().int().min(0).max(3).default(SEARCH_RUNTIME_CONFIG.maxTierDeltaDefault),
-      maxSkillPerStep: z.number().int().min(0).max(3).default(SEARCH_RUNTIME_CONFIG.maxSkillPerStepDefault),
-      enableGroupMinorBucket: z.boolean().default(false),
-      enableComboPriorityOrder: z.boolean().default(false),
-      enableDynamicBeamShrink: z.boolean().default(false),
-      enableMarginScreen: z.boolean().default(false),
-      scorePreset: z.enum(['sum', 'str_first', 'agi_first', 'balanced']).default('sum'),
-      scoreWeights: vecSchema.partial().optional(),
-      finalActiveEquipIds: z.array(z.string().min(1)).default([]),
-      finalActiveSkillIds: z.array(z.string().min(1)).default([]),
-      targetFinalJobId: z.string().min(1).optional(),
-      firstStepJobIds: z.array(z.string().min(1)).optional(),
-    })
-    .optional(),
-  ignorePromotionRequirements: z.boolean().default(false),
-})
-
-const validateSingleEquipPerSlot = (allEquips: EquipDef[], equipIds: string[], context: string): void => {
-  const map = new Map(allEquips.map((item) => [item.id, item]))
-  const used = new Set<EquipDef['slot']>()
-  for (const equipId of equipIds) {
-    const equip = map.get(equipId)
-    if (!equip) throw new Error(`equip not found in ${context}: ${equipId}`)
-    if (used.has(equip.slot)) throw new Error(`equip slot conflict in ${context}: ${equip.slot}`)
-    used.add(equip.slot)
-  }
-}
-
-const validateTraitSlots = (allTraits: TraitDef[], traitIds: string[], context: string): void => {
-  const map = new Map(allTraits.map((item) => [item.id, item]))
-  const used = new Set<TraitDef['slot']>()
-  for (const traitId of traitIds) {
-    const trait = map.get(traitId)
-    if (!trait) throw new Error(`trait not found in ${context}: ${traitId}`)
-    if (trait.slot !== 'learning') {
-      if (used.has(trait.slot)) throw new Error(`trait slot conflict in ${context}: ${trait.slot}`)
-      used.add(trait.slot)
-    }
-  }
-}
-
-const validateSkillCount = (skillIds: string[], context: string): void => {
-  if (skillIds.length > 3) throw new Error(`skill count overflow in ${context}: max 3`)
-}
-
-const sumStatsByIds = <T extends { id: string; stat: AttrVector }>(source: T[], ids: string[], label: string): AttrVector => {
-  const map = new Map(source.map((item) => [item.id, item]))
-  return addMany(
-    ids.map((id) => {
-      const item = map.get(id)
-      if (!item) throw new Error(`${label} not found: ${id}`)
-      return item.stat
-    }),
-  )
-}
-
-const levelFactor = (level: number): number => (level >= 60 ? 0.35 : 1)
-
-/**
- * simulateZhushen：执行核心模拟计算流程。
- * @param input 业务输入对象，包含执行所需上下文数据。
- * @return 返回计算结果，包含核心指标与产物。
- * @throws 当业务前置条件不满足或内部处理失败时抛出异常。
- * @exception 当业务前置条件不满足或内部处理失败时抛出异常。
- * @remarks 该函数属于公共导出能力，修改行为时需同步更新调用方、测试与文档。
- */
-export const simulateZhushen = (input: SimulationInput): SimulationResult => {
-  const jobsById = new Map(input.jobs.map((job) => [job.id, job]))
-  let currentJob = jobsById.get(input.initialJobId)
-  if (!currentJob) throw new Error(`initial job not found: ${input.initialJobId}`)
-
-  validateSingleEquipPerSlot(input.equips, input.activeEquipIds, 'activeEquipIds')
-  validateTraitSlots(input.traits, input.activeTraitIds, 'activeTraitIds')
-  validateSkillCount(input.activeSkillIds, 'activeSkillIds')
-  for (const step of input.promotions) validateSingleEquipPerSlot(input.equips, step.equipIds, `promotion level ${step.level}`)
-  for (const step of input.promotions) validateSkillCount(step.skillIds, `promotion level ${step.level}`)
-  for (let i = 1; i < input.promotions.length; i += 1) {
-    if (input.promotions[i].level < input.promotions[i - 1].level) throw new Error('promotions must be sorted by level asc')
-  }
-
-  const base = addVec(input.character.base, addMany([input.character.trait, sumStatsByIds(input.traits, input.activeTraitIds, 'active trait')]))
-  let growthAcc = zeroVec()
-  let promotionIndex = 0
-  const logs: string[] = []
-
-  for (let level = MIN_LEVEL; level < input.targetLevel; level += 1) {
-    while (promotionIndex < input.promotions.length && input.promotions[promotionIndex].level === level) {
-      const step = input.promotions[promotionIndex]
-      const toJob = jobsById.get(step.toJobId)
-      if (!toJob) throw new Error(`promotion job not found at level ${level}: ${step.toJobId}`)
-      const currentPanel = addMany([
-        base,
-        currentJob.panel,
-        growthAcc,
-        sumStatsByIds(input.equips, step.equipIds, 'promotion equip'),
-        sumStatsByIds(input.skills, step.skillIds, 'promotion skill'),
-      ])
-      if (!vecGE(currentPanel, toJob.require) && !input.ignorePromotionRequirements) {
-        throw new Error(`promotion failed at level ${level}: cannot promote to ${toJob.name}`)
-      }
-      if (!vecGE(currentPanel, toJob.require) && input.ignorePromotionRequirements) {
-        logs.push(`Lv${level} -> ${toJob.name}（已忽略转职条件）`)
-      }
-      currentJob = toJob
-      logs.push(`Lv${level} -> ${toJob.name}（装备:${step.equipIds.join(',')} 技能:${step.skillIds.join(',')}）`)
-      promotionIndex += 1
-    }
-    growthAcc = addVec(growthAcc, mulVec(addVec(input.character.growth, currentJob.growth), levelFactor(level)))
-  }
-
-  // 支持在目标等级触发转职：影响最终面板，不再产生额外成长。
-  while (promotionIndex < input.promotions.length && input.promotions[promotionIndex].level === input.targetLevel) {
-    const step = input.promotions[promotionIndex]
-    const toJob = jobsById.get(step.toJobId)
-    if (!toJob) throw new Error(`promotion job not found at level ${input.targetLevel}: ${step.toJobId}`)
-    const currentPanel = addMany([
-      base,
-      currentJob.panel,
-      growthAcc,
-      sumStatsByIds(input.equips, step.equipIds, 'promotion equip'),
-      sumStatsByIds(input.skills, step.skillIds, 'promotion skill'),
-    ])
-    if (!vecGE(currentPanel, toJob.require) && !input.ignorePromotionRequirements) {
-      throw new Error(`promotion failed at level ${input.targetLevel}: cannot promote to ${toJob.name}`)
-    }
-    if (!vecGE(currentPanel, toJob.require) && input.ignorePromotionRequirements) {
-      logs.push(`Lv${input.targetLevel} -> ${toJob.name}（已忽略转职条件）`)
-    }
-    currentJob = toJob
-    logs.push(`Lv${input.targetLevel} -> ${toJob.name}（装备:${step.equipIds.join(',')} 技能:${step.skillIds.join(',')}）`)
-    promotionIndex += 1
-  }
-
-  const final = addMany([
-    base,
-    currentJob.panel,
-    growthAcc,
-    sumStatsByIds(input.equips, input.activeEquipIds, 'active equip'),
-    sumStatsByIds(input.skills, input.activeSkillIds, 'active skill'),
-  ])
-
-  return { final: toFixed4Vec(final), growthAcc: toFixed4Vec(growthAcc), currentJob, logs }
-}
-
-const vec6 = (): Vec6 => new Float32Array(6)
-const vec6FromAttr = (v: AttrVector): Vec6 => new Float32Array([v.str, v.tec, v.agi, v.con, v.per, v.wil])
-const attrFromVec6 = (v: Vec6): AttrVector => ({ str: round4(v[0]), tec: round4(v[1]), agi: round4(v[2]), con: round4(v[3]), per: round4(v[4]), wil: round4(v[5]) })
-const addVec6Into = (out: Vec6, a: Vec6): void => {
-  for (let i = 0; i < 6; i += 1) out[i] += a[i]
-}
-const addMulVec6Into = (out: Vec6, a: Vec6, m: number): void => {
-  for (let i = 0; i < 6; i += 1) out[i] += a[i] * m
-}
-const addVec6From = (out: Vec6, a: Vec6, b: Vec6): void => {
-  for (let i = 0; i < 6; i += 1) out[i] = a[i] + b[i]
-}
-const geVec6 = (a: Vec6, b: Vec6): boolean => {
-  for (let i = 0; i < 6; i += 1) if (a[i] < b[i]) return false
-  return true
-}
-const dominatesVec6 = (a: Vec6, b: Vec6): boolean => {
-  let strictly = false
-  for (let i = 0; i < 6; i += 1) {
-    if (a[i] < b[i]) return false
-    if (a[i] > b[i]) strictly = true
-  }
-  return strictly
-}
-const scoreVec6 = (v: Vec6, preset: ScorePreset, custom?: Partial<AttrVector>): number => {
-  if (preset === 'str_first') return v[0] * 3 + v[3] * 1.2 + v[2] + v[1] + v[4] + v[5]
-  if (preset === 'agi_first') return v[2] * 3 + v[1] * 1.2 + v[0] + v[3] + v[4] + v[5]
-  if (preset === 'balanced') return v[0] + v[1] + v[2] + v[3] + v[4] + v[5] - Math.max(...v) * 0.05
-  if (custom) {
-    return (
-      v[0] * (custom.str ?? 1) +
-      v[1] * (custom.tec ?? 1) +
-      v[2] * (custom.agi ?? 1) +
-      v[3] * (custom.con ?? 1) +
-      v[4] * (custom.per ?? 1) +
-      v[5] * (custom.wil ?? 1)
-    )
-  }
-  return v[0] + v[1] + v[2] + v[3] + v[4] + v[5]
-}
 const keyOfStateNum = (level: number, jobIndex: number, transferCount: number): number => level * 1_000_000 + jobIndex * 1_000 + transferCount
-const factorPrefix = (targetLevel: number): Float32Array => {
-  const prefix = new Float32Array(targetLevel + 1)
-  for (let level = 1; level < targetLevel; level += 1) prefix[level + 1] = prefix[level] + levelFactor(level)
-  return prefix
-}
-const factorRange = (prefix: Float32Array, fromLevel: number, toLevel: number): number => {
-  if (toLevel <= fromLevel) return 0
-  return prefix[toLevel] - prefix[fromLevel]
-}
-
-
-export class MinHeapTopK {
-  private readonly data: Array<{ index: number; score: number }> = []
-  private readonly k: number
-  constructor(k: number) {
-    this.k = k
-  }
-
-  push(index: number, score: number): void {
-    if (this.k <= 0) return
-    if (this.data.length < this.k) {
-      this.data.push({ index, score })
-      this.siftUp(this.data.length - 1)
-      return
-    }
-    if (score <= this.data[0].score) return
-    this.data[0] = { index, score }
-    this.siftDown(0)
-  }
-
-  valuesDesc(): number[] {
-    return [...this.data].sort((a, b) => b.score - a.score).map((x) => x.index)
-  }
-
-  private siftUp(index: number): void {
-    while (index > 0) {
-      const parent = (index - 1) >> 1
-      if (this.data[index].score >= this.data[parent].score) break
-      ;[this.data[index], this.data[parent]] = [this.data[parent], this.data[index]]
-      index = parent
-    }
-  }
-
-  private siftDown(index: number): void {
-    const n = this.data.length
-    while (true) {
-      const left = index * 2 + 1
-      const right = left + 1
-      let smallest = index
-      if (left < n && this.data[left].score < this.data[smallest].score) smallest = left
-      if (right < n && this.data[right].score < this.data[smallest].score) smallest = right
-      if (smallest === index) break
-      ;[this.data[index], this.data[smallest]] = [this.data[smallest], this.data[index]]
-      index = smallest
-    }
-  }
-}
 
 
 const yieldNow = async (): Promise<void> =>
@@ -649,61 +75,9 @@ const yieldNow = async (): Promise<void> =>
   })
 
 
-const combinations = <T,>(arr: T[], maxPick: number): T[][] => {
-  const out: T[][] = [[]]
-  for (const item of arr) {
-    const size = out.length
-    for (let i = 0; i < size; i += 1) {
-      const next = [...out[i], item]
-      if (next.length <= maxPick) out.push(next)
-    }
-  }
-  return out
-}
-
-const buildEquipLoadouts = (equips: EquipDef[]): string[][] => {
-  const bySlot = new Map<EquipDef['slot'], EquipDef[]>()
-  for (const e of equips) {
-    const bucket = bySlot.get(e.slot) ?? []
-    bucket.push(e)
-    bySlot.set(e.slot, bucket)
-  }
-  let out: string[][] = [[]]
-  for (const slot of ['main_hand', 'off_hand', 'helmet', 'armor', 'shoes', 'accessory', 'head_fashion', 'armor_fashion'] as const) {
-    const choices = bySlot.get(slot) ?? []
-    const next: string[][] = []
-    for (const current of out) {
-      next.push(current)
-      for (const choice of choices) next.push([...current, choice.id])
-    }
-    out = next
-  }
-  return out
-}
-
 const keyPromoBand = (level: number): number => Math.floor(level / 10)
 const routeBucketKey = (transferCount: number, lastPromoLevel: number, growthMajor: string): string =>
   `${transferCount}:${keyPromoBand(lastPromoLevel)}:${growthMajor}`
-
-const buildPromoLevelCandidates = (stateLevel: number, targetLevel: number): number[] => {
-  const lastLevel = targetLevel - 1
-  if (stateLevel > lastLevel) return []
-  const span = lastLevel - stateLevel + 1
-  if (span <= 6) {
-    const full: number[] = []
-    for (let level = stateLevel; level <= lastLevel; level += 1) full.push(level)
-    return full
-  }
-  const set = new Set<number>([stateLevel, lastLevel])
-  for (const offset of [1, 2, 3]) {
-    const level = stateLevel + offset
-    if (level <= lastLevel) set.add(level)
-  }
-  const mid = stateLevel + Math.floor(span / 2)
-  if (mid >= stateLevel && mid <= lastLevel) set.add(mid)
-  for (let level = Math.max(stateLevel, lastLevel - 2); level <= lastLevel; level += 1) set.add(level)
-  return [...set].sort((a, b) => a - b)
-}
 
 const growthMinorBucket = (v: Vec6): string => {
   const major = majorBucket(v)
@@ -740,14 +114,14 @@ export const searchZhushenPlans = async (
 ): Promise<SearchResult> => {
   const search = input.search
   if (!search?.enabled) return { topPlans: [], exploredStates: 0, prunedByDominance: 0 }
-  if (input.jobs.length > 64) throw new Error('current optimized search supports up to 64 jobs for visited mask')
+  if (input.jobs.length > 64) throw new Error('search supports <=64 jobs')
 
   const jobsById = new Map(input.jobs.map((j) => [j.id, j]))
   const jobIndexById = new Map(input.jobs.map((j, i) => [j.id, i]))
   const initialJob = jobsById.get(input.initialJobId)
   if (!initialJob) throw new Error(`initial job not found: ${input.initialJobId}`)
   const initialJobIndex = jobIndexById.get(input.initialJobId)
-  if (initialJobIndex === undefined) throw new Error(`initial job index not found: ${input.initialJobId}`)
+  if (initialJobIndex === undefined) throw new Error(`initial job index missing: ${input.initialJobId}`)
 
   validateSingleEquipPerSlot(input.equips, search.finalActiveEquipIds, 'search.finalActiveEquipIds')
   validateSkillCount(search.finalActiveSkillIds, 'search.finalActiveSkillIds')

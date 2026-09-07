@@ -1,437 +1,77 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { BlobLayer } from '@/shared/ui'
-import { createPanelMotionPreset } from '@/shared/ui/composables/useBlobMotion'
-import {
-  builtinZhushenEquips,
-  builtinZhushenJobs,
-  builtinZhushenSkills,
-  builtinZhushenTraits,
-} from '@/data/zhushen'
-import {
-  type AttrVector,
-  type PromotionStep,
-  type ScorePreset,
-  type SearchProgress,
-  type SimulationInput,
-  formatVec,
-  zhushenEquipListSchema,
-  zhushenJobListSchema,
-  zhushenSimulationInputSchema,
-  zhushenSkillListSchema,
-  zhushenTraitListSchema,
-} from '@/domains/zhushen/model/zhushen-model'
-import { SEARCH_RUNTIME_CONFIG } from '@/config/search'
-import { trackAnalyticsEvent } from '@/shared/observability/client'
-import { normalizeUnknownError } from '@/shared/observability/errors'
-import { zhushenCustomStore } from '@/domains/zhushen/services/zhushen-custom-store'
-import { ZHUSHEN_ATTR_LABEL, ZHUSHEN_EQUIP_SLOT_LABEL, ZHUSHEN_TRAIT_SLOT_LABEL } from '@/domains/zhushen/model/ui-meta'
-import { runZhushenSimulation } from '@/domains/zhushen/engine/simulation'
-import type { ZhushenSearchOrchestratorPort } from '@/domains/zhushen/ports'
-import { zhushenSearchOrchestratorFactory } from '@/domains/zhushen/orchestrator/search-orchestrator'
-import {
-  initialZhushenSimulatorUiState,
-  reduceZhushenSimulatorState,
-  type ZhushenSimulatorEvent,
-} from '@/domains/zhushen/model/simulator-events'
-import {
-  createZhushenDebugSnapshot,
-  parseZhushenDebugSnapshot,
-  replayZhushenDebugSnapshot,
-} from '@/domains/zhushen/model/debug-snapshot'
+import { formatVec } from '@/domains/zhushen/model/zhushen-model'
+import { SurfaceCard } from '@/shared/ui'
+import { useZhushenSimulatorPageState } from '../composables/useZhushenSimulatorPageState'
 
-const pageMotion = computed(() => createPanelMotionPreset('zhushen:simulator'))
-const custom = ref(zhushenCustomStore.load())
-const jobs = computed(() => [...builtinZhushenJobs, ...custom.value.jobs])
-const equips = computed(() => [...builtinZhushenEquips, ...custom.value.equips])
-const skills = computed(() => [...builtinZhushenSkills, ...custom.value.skills])
-const traits = computed(() => [...builtinZhushenTraits, ...custom.value.traits])
-
-const targetLevel = ref(150)
-const initialJobId = ref('soldier')
-const characterGrowth = ref<AttrVector>({ str: 6, tec: 4, agi: 7, con: 5, per: 3, wil: 2 })
-const activeTraitIds = ref<string[]>([])
-const activeEquipIds = ref<string[]>(['sword-king', 'armor-guard'])
-const activeSkillIds = ref<string[]>(['nimble'])
-
-const promotions = ref<PromotionStep[]>([
-  { level: 1, toJobId: 'mercenary', equipIds: ['sword-king', 'ring-hawk', 'fashion-crown'], skillIds: ['focus'] },
-  { level: 1, toJobId: 'royal-knight', equipIds: ['sword-king', 'armor-guard', 'ring-hawk', 'fashion-crown'], skillIds: ['nimble', 'fortitude'] },
-])
-
-const searchEnabled = ref(true)
-const beamWidth = ref(SEARCH_RUNTIME_CONFIG.beamWidthDefault)
-const maxTransfer = ref(SEARCH_RUNTIME_CONFIG.maxTransferDefault)
-const maxTierDelta = ref(SEARCH_RUNTIME_CONFIG.maxTierDeltaDefault)
-const maxSkillPerStep = ref(SEARCH_RUNTIME_CONFIG.maxSkillPerStepDefault)
-type SearchProfile = 'safe' | 'balanced' | 'aggressive'
-const searchProfile = ref<SearchProfile>('balanced')
-const aggressiveConfirmed = ref(false)
-const scorePreset = ref<ScorePreset>('sum')
-const searchFinalEquipIds = ref<string[]>(['sword-king', 'armor-guard'])
-const searchFinalSkillIds = ref<string[]>(['nimble'])
-const searchTargetFinalJobId = ref('royal-knight')
-const ignorePromotionRequirements = ref(false)
-
-const output = ref<{ final: AttrVector; growthAcc: AttrVector; jobName: string; logs: string[] } | null>(null)
-const searchSummary = ref<{ exploredStates: number; prunedByDominance: number } | null>(null)
-const topPlans = ref<Array<{ rank: number; score: number; final: AttrVector; route: string; promotions: PromotionStep[] }>>([])
-const errorText = ref('')
-const selectionError = ref('')
-const searchPending = ref(false)
-const searchProgress = ref<SearchProgress | null>(null)
-const uiState = ref(initialZhushenSimulatorUiState())
-const uiEventLog = ref<ZhushenSimulatorEvent[]>([])
-const dispatchUiEvent = (event: ZhushenSimulatorEvent) => {
-  const eventNameMap: Record<
-    ZhushenSimulatorEvent['type'],
-    'calculation_started' | 'simulation_succeeded' | 'search_started' | 'search_progress_updated' | 'search_succeeded' | 'calculation_failed' | 'selection_error_set' | 'selection_error_clear'
-  > = {
-    selection_error_set: 'selection_error_set',
-    selection_error_clear: 'selection_error_clear',
-    calculation_started: 'calculation_started',
-    simulation_succeeded: 'simulation_succeeded',
-    search_started: 'search_started',
-    search_progress_updated: 'search_progress_updated',
-    search_succeeded: 'search_succeeded',
-    calculation_failed: 'calculation_failed',
-  }
-  uiEventLog.value = [...uiEventLog.value, event]
-  trackAnalyticsEvent({
-    name: eventNameMap[event.type],
-    domain: 'zhushen',
-    at: Date.now(),
-    payload: event.type === 'calculation_failed' ? { code: event.error.code, category: event.error.category, stage: event.error.stage } : undefined,
-  })
-  uiState.value = reduceZhushenSimulatorState(uiState.value, event)
-  output.value = uiState.value.output
-  searchSummary.value = uiState.value.searchSummary
-  topPlans.value = uiState.value.topPlans
-  errorText.value = uiState.value.errorText
-  selectionError.value = uiState.value.selectionError
-  searchPending.value = uiState.value.searchPending
-  searchProgress.value = uiState.value.searchProgress
-}
-const searchOrchestrator: ZhushenSearchOrchestratorPort = zhushenSearchOrchestratorFactory.create({
-  onProgress: (progress) => {
-    dispatchUiEvent({ type: 'search_progress_updated', progress })
-  },
-})
-
-const traitSlotLabel = ZHUSHEN_TRAIT_SLOT_LABEL
-const equipSlotLabel = ZHUSHEN_EQUIP_SLOT_LABEL
-const attrLabel = ZHUSHEN_ATTR_LABEL
-
-const traitFilter = ref('all')
-const equipFilter = ref('all')
-const skillFilter = ref('all')
-const promoEquipFilter = ref('all')
-const promoSkillFilter = ref('all')
-
-const filteredTraits = computed(() =>
-  traitFilter.value === 'all' ? traits.value : traits.value.filter((t) => t.slot === traitFilter.value),
-)
-const filteredEquips = computed(() =>
-  equipFilter.value === 'all' ? equips.value : equips.value.filter((e) => e.slot === equipFilter.value),
-)
-const filteredSkills = computed(() =>
-  skillFilter.value === 'all' ? skills.value : skills.value.filter((s) => s.category === skillFilter.value),
-)
-const filteredPromoEquips = computed(() =>
-  promoEquipFilter.value === 'all' ? equips.value : equips.value.filter((e) => e.slot === promoEquipFilter.value),
-)
-const filteredPromoSkills = computed(() =>
-  promoSkillFilter.value === 'all' ? skills.value : skills.value.filter((s) => s.category === promoSkillFilter.value),
-)
-const searchRiskWarning = computed(() => {
-  if (!searchEnabled.value) return ''
-  if (beamWidth.value > 1200 && maxTransfer.value >= 6) return '当前参数组合可能导致搜索规模激增（Beam>1200 且 最大转职>=6）。'
-  if (maxTransfer.value >= 8) return '最大转职过高，建议控制在 4~6 以内。'
-  if (maxSkillPerStep.value >= 3 && maxTransfer.value >= 5) return '步内技能与转职上限同时偏高，容易触发分支爆炸。'
-  return ''
-})
-const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value))
-const constrainedSearchParams = computed(() => {
-  if (searchProfile.value === 'safe') {
-    return {
-      beamWidth: clamp(beamWidth.value, 10, 800),
-      maxTransfer: clamp(maxTransfer.value, 0, 4),
-      maxTierDelta: clamp(maxTierDelta.value, 0, 2),
-      maxSkillPerStep: clamp(maxSkillPerStep.value, 0, 1),
-    }
-  }
-  if (searchProfile.value === 'balanced') {
-    return {
-      beamWidth: clamp(beamWidth.value, 10, 1200),
-      maxTransfer: clamp(maxTransfer.value, 0, 6),
-      maxTierDelta: clamp(maxTierDelta.value, 0, 2),
-      maxSkillPerStep: clamp(maxSkillPerStep.value, 0, 2),
-    }
-  }
-  return {
-    beamWidth: clamp(beamWidth.value, 10, 5000),
-    maxTransfer: clamp(maxTransfer.value, 0, 20),
-    maxTierDelta: clamp(maxTierDelta.value, 0, 3),
-    maxSkillPerStep: clamp(maxSkillPerStep.value, 0, 3),
-  }
-})
-const jobNameById = computed(() => new Map(jobs.value.map((j) => [j.id, j.name])))
-
-const newJobJson = ref(
-  '{"id":"custom-job-1","name":"自定义职业","tier":1,"panel":{"str":0,"tec":0,"agi":0,"con":0,"per":0,"wil":0},"growth":{"str":0,"tec":0,"agi":0,"con":0,"per":0,"wil":0},"require":{"str":0,"tec":0,"agi":0,"con":0,"per":0,"wil":0}}',
-)
-const newEquipJson = ref(
-  '{"id":"custom-equip-1","name":"自定义装备","slot":"main_hand","stat":{"str":0,"tec":0,"agi":0,"con":0,"per":0,"wil":0}}',
-)
-const newSkillJson = ref('{"id":"custom-skill-1","name":"自定义技能","category":"str","stat":{"str":0,"tec":0,"agi":0,"con":0,"per":0,"wil":0}}')
-const newTraitJson = ref('{"id":"custom-trait-1","name":"自定义特性","slot":"learning","stat":{"str":0,"tec":0,"agi":0,"con":0,"per":0,"wil":0}}')
-const DEFAULT_PROMOTION_JOB_ID = 'soldier'
-
-const toggle = (arr: string[], id: string): string[] => (arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id])
-const enforceSkillMax3 = (nextIds: string[], context: string): string[] | null => {
-  if (nextIds.length > 3) {
-    dispatchUiEvent({ type: 'selection_error_set', message: `${context}最多选择3个技能` })
-    return null
-  }
-  dispatchUiEvent({ type: 'selection_error_clear' })
-  return nextIds
-}
-const enforceEquipSlots = (nextIds: string[], context: string): string[] | null => {
-  const used = new Set<string>()
-  const map = new Map(equips.value.map((e) => [e.id, e]))
-  for (const id of nextIds) {
-    const slot = map.get(id)?.slot
-    if (!slot) continue
-    if (used.has(slot)) {
-      dispatchUiEvent({ type: 'selection_error_set', message: `${context}每种装备分类最多1个` })
-      return null
-    }
-    used.add(slot)
-  }
-  dispatchUiEvent({ type: 'selection_error_clear' })
-  return nextIds
-}
-const enforceTraitSlots = (nextIds: string[]): string[] | null => {
-  const used = new Set<string>()
-  const map = new Map(traits.value.map((t) => [t.id, t]))
-  for (const id of nextIds) {
-    const slot = map.get(id)?.slot
-    if (!slot) continue
-    if (slot !== 'learning' && used.has(slot)) {
-      dispatchUiEvent({ type: 'selection_error_set', message: '除学习外，每个特性位置最多1个' })
-      return null
-    }
-    if (slot !== 'learning') used.add(slot)
-  }
-  dispatchUiEvent({ type: 'selection_error_clear' })
-  return nextIds
-}
-
-const buildInput = (): SimulationInput => {
-  const traitIdSet = new Set(traits.value.map((t) => t.id))
-  const equipIdSet = new Set(equips.value.map((e) => e.id))
-  const skillIdSet = new Set(skills.value.map((s) => s.id))
-  const safeActiveTraitIds = activeTraitIds.value.filter((id) => traitIdSet.has(id))
-  const safeActiveEquipIds = activeEquipIds.value.filter((id) => equipIdSet.has(id))
-  const safeActiveSkillIds = activeSkillIds.value.filter((id) => skillIdSet.has(id))
-
-  const safePromotions = [...promotions.value]
-    .sort((a, b) => a.level - b.level)
-    .map((p) => ({
-      ...p,
-      equipIds: p.equipIds.filter((id) => equipIdSet.has(id)),
-      skillIds: p.skillIds.filter((id) => skillIdSet.has(id)),
-    }))
-
-  const safeSearchFinalEquipIds = searchFinalEquipIds.value.filter((id) => equipIdSet.has(id))
-  const safeSearchFinalSkillIds = searchFinalSkillIds.value.filter((id) => skillIdSet.has(id))
-
-  return {
-  targetLevel: targetLevel.value,
-  initialJobId: initialJobId.value,
-  character: {
-    base: { str: 0, tec: 0, agi: 0, con: 0, per: 0, wil: 0 },
-    trait: { str: 0, tec: 0, agi: 0, con: 0, per: 0, wil: 0 },
-    growth: characterGrowth.value,
-  },
-  jobs: jobs.value,
-  equips: equips.value,
-  skills: skills.value,
-  traits: traits.value,
-  activeEquipIds: safeActiveEquipIds,
-  activeSkillIds: safeActiveSkillIds,
-  activeTraitIds: safeActiveTraitIds,
-  promotions: safePromotions,
-  ignorePromotionRequirements: ignorePromotionRequirements.value,
-  search: {
-    enabled: searchEnabled.value,
-    beamWidth: constrainedSearchParams.value.beamWidth,
-    maxTransfer: constrainedSearchParams.value.maxTransfer,
-    maxTierDelta: constrainedSearchParams.value.maxTierDelta,
-    maxSkillPerStep: constrainedSearchParams.value.maxSkillPerStep,
-    scorePreset: scorePreset.value,
-    finalActiveEquipIds: safeSearchFinalEquipIds,
-    finalActiveSkillIds: safeSearchFinalSkillIds,
-    targetFinalJobId: searchTargetFinalJobId.value,
-  },
-  }
-}
-
-const saveCustom = () => zhushenCustomStore.save(custom.value)
-const addCustomJob = () => {
-  const parsed = zhushenJobListSchema.parse([JSON.parse(newJobJson.value)])[0]
-  custom.value.jobs = [...custom.value.jobs.filter((x) => x.id !== parsed.id), parsed]
-  saveCustom()
-}
-const addCustomEquip = () => {
-  const parsed = zhushenEquipListSchema.parse([JSON.parse(newEquipJson.value)])[0]
-  custom.value.equips = [...custom.value.equips.filter((x) => x.id !== parsed.id), parsed]
-  saveCustom()
-}
-const addCustomSkill = () => {
-  const parsed = zhushenSkillListSchema.parse([JSON.parse(newSkillJson.value)])[0]
-  custom.value.skills = [...custom.value.skills.filter((x) => x.id !== parsed.id), parsed]
-  saveCustom()
-}
-const addCustomTrait = () => {
-  const parsed = zhushenTraitListSchema.parse([JSON.parse(newTraitJson.value)])[0]
-  custom.value.traits = [...custom.value.traits.filter((x) => x.id !== parsed.id), parsed]
-  saveCustom()
-}
-const resetCustom = () => {
-  custom.value = zhushenCustomStore.reset()
-}
-
-const resolvePromotionJobId = (candidate?: string) => {
-  const validIds = new Set(jobs.value.map((j) => j.id))
-  if (candidate && validIds.has(candidate)) return candidate
-  if (validIds.has(DEFAULT_PROMOTION_JOB_ID)) return DEFAULT_PROMOTION_JOB_ID
-  return jobs.value[0]?.id ?? ''
-}
-
-const addPromotion = () => promotions.value.push({ level: 1, toJobId: resolvePromotionJobId(), equipIds: [], skillIds: [] })
-const removePromotion = (idx: number) => promotions.value.splice(idx, 1)
-
-watch(
+const {
+  activeEquipIds,
+  activeSkillIds,
+  activeTraitIds,
+  addCustomEquip,
+  addCustomJob,
+  addCustomSkill,
+  addCustomTrait,
+  addPromotion,
+  aggressiveConfirmed,
+  applyPlanToManual,
+  attrKeys,
+  attrLabel,
+  beamWidth,
+  calculate,
+  characterBase,
+  characterGrowth,
+  characterTrait,
+  constrainedSearchParams,
+  equipFilter,
+  equipSlotLabel,
+  equips,
+  errorText,
+  exportDebugSnapshot,
+  filteredEquips,
+  filteredPromoEquips,
+  filteredPromoSkills,
+  filteredSkills,
+  filteredTraits,
+  ignorePromotionRequirements,
+  importDebugSnapshot,
+  initialJobId,
   jobs,
-  () => {
-    promotions.value = promotions.value.map((step) => ({
-      ...step,
-      toJobId: resolvePromotionJobId(step.toJobId),
-    }))
-  },
-  { immediate: true },
-)
-watch(searchProfile, (next) => {
-  if (next !== 'aggressive') aggressiveConfirmed.value = false
-})
-
-const calculate = async () => {
-  if (searchEnabled.value && searchProfile.value === 'aggressive' && !aggressiveConfirmed.value) {
-    dispatchUiEvent({ type: 'selection_error_set', message: '激进档需要先勾选确认后再执行计算' })
-    return
-  }
-  dispatchUiEvent({ type: 'calculation_started' })
-  try {
-    const parsed = zhushenSimulationInputSchema.parse(buildInput())
-    const sim = runZhushenSimulation(parsed)
-    dispatchUiEvent({
-      type: 'simulation_succeeded',
-      output: { final: sim.final, growthAcc: sim.growthAcc, jobName: sim.currentJob.name, logs: sim.logs },
-    })
-    if (parsed.search?.enabled) {
-      dispatchUiEvent({ type: 'search_started' })
-      const searchResult = await searchOrchestrator.run(parsed)
-      const plans = searchResult.topPlans.slice(0, 10).map((x) => ({
-        rank: x.rank,
-        score: x.score,
-        final: x.final,
-        route:
-          x.promotions
-            .map((p) => `Lv${p.level}->${jobNameById.value.get(p.toJobId) ?? p.toJobId}`)
-            .join(' / ') || '无转职',
-        promotions: x.promotions.map((p) => ({ ...p, equipIds: [...p.equipIds], skillIds: [...p.skillIds] })),
-      }))
-      dispatchUiEvent({
-        type: 'search_succeeded',
-        summary: { exploredStates: searchResult.exploredStates, prunedByDominance: searchResult.prunedByDominance },
-        plans,
-      })
-    }
-  } catch (error) {
-    searchOrchestrator.dispose()
-    dispatchUiEvent({
-      type: 'calculation_failed',
-      error: normalizeUnknownError(error, 'zhushen.calculate', {
-        targetLevel: targetLevel.value,
-        promotionCount: promotions.value.length,
-      }),
-    })
-  }
-}
-
-const exportDebugSnapshot = () => {
-  const snapshot = createZhushenDebugSnapshot({
-    domain: 'zhushen',
-    input: buildInput(),
-    events: uiEventLog.value,
-    state: uiState.value,
-    meta: { version: '0.0.0', buildAt: new Date().toISOString() },
-  })
-  const blob = new Blob([JSON.stringify(snapshot)], { type: 'application/json;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = `zhushen-debug-snapshot-${Date.now()}.json`
-  anchor.click()
-  URL.revokeObjectURL(url)
-}
-
-const importDebugSnapshot = async (event: Event) => {
-  const inputEl = event.target as HTMLInputElement
-  const file = inputEl.files?.[0]
-  if (!file) return
-  try {
-    const content = await file.text()
-    const parsed = parseZhushenDebugSnapshot(content)
-    const replayed = replayZhushenDebugSnapshot(parsed)
-    uiEventLog.value = [...parsed.events]
-    uiState.value = replayed
-    output.value = replayed.output
-    searchSummary.value = replayed.searchSummary
-    topPlans.value = replayed.topPlans
-    errorText.value = replayed.errorText
-    selectionError.value = replayed.selectionError
-    searchPending.value = replayed.searchPending
-    searchProgress.value = replayed.searchProgress
-  } catch (error) {
-    dispatchUiEvent({
-      type: 'calculation_failed',
-      error: normalizeUnknownError(error, 'zhushen.snapshot.import'),
-    })
-  } finally {
-    inputEl.value = ''
-  }
-}
-
-const applyPlanToManual = (plan: { promotions: PromotionStep[] }) => {
-  promotions.value = plan.promotions.map((p) => ({
-    level: p.level,
-    toJobId: p.toJobId,
-    equipIds: [...p.equipIds],
-    skillIds: [...p.skillIds],
-  }))
-  activeEquipIds.value = [...searchFinalEquipIds.value]
-  activeSkillIds.value = [...searchFinalSkillIds.value]
-  dispatchUiEvent({ type: 'selection_error_clear' })
-}
-
-calculate()
-trackAnalyticsEvent({ name: 'page_entered', domain: 'zhushen', at: Date.now() })
-onBeforeUnmount(() => {
-  searchOrchestrator.dispose()
-})
+  maxSkillPerStep,
+  maxTierDelta,
+  maxTransfer,
+  newEquipJson,
+  newJobJson,
+  newSkillJson,
+  newTraitJson,
+  output,
+  promoEquipFilter,
+  promoSkillFilter,
+  promotions,
+  removePromotion,
+  resetCustom,
+  scorePreset,
+  searchEnabled,
+  searchFinalEquipIds,
+  searchFinalSkillIds,
+  searchPending,
+  searchProfile,
+  searchProgress,
+  searchRiskWarning,
+  searchSummary,
+  searchTargetFinalJobId,
+  selectionError,
+  skillFilter,
+  skills,
+  targetLevel,
+  toggle,
+  topPlans,
+  traitFilter,
+  traitSlotLabel,
+  enforceEquipSlots,
+  enforceSkillMax3,
+  enforceTraitSlots,
+} = useZhushenSimulatorPageState()
 </script>
 
 <template>
@@ -439,134 +79,266 @@ onBeforeUnmount(() => {
     <header class="mb-6 flex items-center justify-between gap-4">
       <div>
         <h1 class="mb-1 text-2xl font-semibold text-[var(--text-primary)] sm:text-3xl">诸神皇冠培养模拟器</h1>
-        <p class="text-sm text-[var(--text-muted)] sm:text-base">仅输入角色成长六维，其余均为页面可配置项。</p>
+        <p class="text-sm text-[var(--text-muted)] sm:text-base">统一录入角色基础、固有特性、成长、转职条件与终态配置，减少手算误差。</p>
       </div>
       <RouterLink to="/" class="ui-btn ui-btn--ghost">返回首页</RouterLink>
     </header>
 
-    <section class="surface-card command-panel mb-4 p-4" :style="pageMotion.tint">
-      <BlobLayer :blobs="pageMotion.blobs" />
+    <SurfaceCard
+      decorative
+      motion-key="zhushen:simulator:hero"
+      class="mb-5"
+      body-class="p-5 sm:p-6"
+    >
+      <div class="mb-4 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p class="text-xs uppercase tracking-[0.28em] text-[var(--text-muted)]">Manual + Search</p>
+          <h2 class="mt-2 text-xl font-semibold text-[var(--text-primary)]">角色输入与终态建模</h2>
+          <p class="mt-2 max-w-3xl text-sm text-[var(--text-muted)]">
+            手动模拟与自动搜索共用同一套输入。这里录入角色基础属性、固有特性、成长六维，以及会影响最终面板的装备、技能、额外特性。
+          </p>
+        </div>
+        <div class="zhushen-chip-row">
+          <span class="ui-chip">目标等级 1-150</span>
+          <span class="ui-chip">Lv60 后成长系数 0.35</span>
+          <span class="ui-chip">转职步骤含装备/技能门槛</span>
+        </div>
+      </div>
+
       <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <label class="text-sm">目标等级<input v-model.number="targetLevel" type="number" min="1" max="150" class="ui-input mt-1 w-full px-2 py-1" /></label>
-        <label class="text-sm">初始职业<select v-model="initialJobId" class="ui-input mt-1 w-full px-2 py-1"><option v-for="j in jobs" :key="j.id" :value="j.id">{{ j.name }} ({{ j.id }})</option></select></label>
+        <label class="text-sm">
+          目标等级
+          <input v-model.number="targetLevel" type="number" min="1" max="150" class="ui-input mt-1 w-full px-3 py-2" />
+        </label>
+        <label class="text-sm">
+          初始职业
+          <select v-model="initialJobId" class="ui-input mt-1 w-full px-3 py-2">
+            <option v-for="j in jobs" :key="j.id" :value="j.id">{{ j.name }} ({{ j.id }})</option>
+          </select>
+        </label>
       </div>
-      <div class="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-3">
-        <label v-for="k in ['str','tec','agi','con','per','wil']" :key="k" class="text-xs">成长{{ k.toUpperCase() }}<input v-model.number="characterGrowth[k as keyof AttrVector]" type="number" step="0.0001" class="ui-input mt-1 w-full px-2 py-1" /></label>
+
+      <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div class="zhushen-subcard">
+          <div class="mb-3">
+            <h3 class="text-sm font-semibold text-[var(--text-primary)]">角色基础属性</h3>
+            <p class="mt-1 text-xs text-[var(--text-muted)]">用于补齐角色出生面板或外部已知的固定初值。</p>
+          </div>
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <label v-for="key in attrKeys" :key="`base-${key}`" class="zhushen-stat-field">
+              <span class="zhushen-stat-label">{{ attrLabel[key] }}</span>
+              <input v-model.number="characterBase[key]" type="number" step="1" class="ui-input mt-1 w-full px-2 py-1.5" />
+            </label>
+          </div>
+        </div>
+
+        <div class="zhushen-subcard">
+          <div class="mb-3">
+            <h3 class="text-sm font-semibold text-[var(--text-primary)]">角色固有特性</h3>
+            <p class="mt-1 text-xs text-[var(--text-muted)]">用于录入角色自带 trait，不与下方可勾选特性池混淆。</p>
+          </div>
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <label v-for="key in attrKeys" :key="`trait-${key}`" class="zhushen-stat-field">
+              <span class="zhushen-stat-label">{{ attrLabel[key] }}</span>
+              <input v-model.number="characterTrait[key]" type="number" step="1" class="ui-input mt-1 w-full px-2 py-1.5" />
+            </label>
+          </div>
+        </div>
+
+        <div class="zhushen-subcard">
+          <div class="mb-3">
+            <h3 class="text-sm font-semibold text-[var(--text-primary)]">角色成长六维</h3>
+            <p class="mt-1 text-xs text-[var(--text-muted)]">每级成长基础值，会与当前职业成长叠加后参与逐级累计。</p>
+          </div>
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <label v-for="key in attrKeys" :key="`growth-${key}`" class="zhushen-stat-field">
+              <span class="zhushen-stat-label">{{ attrLabel[key] }}</span>
+              <input v-model.number="characterGrowth[key]" type="number" step="0.0001" class="ui-input mt-1 w-full px-2 py-1.5" />
+            </label>
+          </div>
+        </div>
       </div>
-      <div class="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <div class="text-sm">
-          <p>特性（多选）</p>
+
+      <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div class="zhushen-picker">
+          <p class="zhushen-picker__title">额外特性（多选）</p>
           <select v-model="traitFilter" class="ui-input mt-1 w-full px-2 py-1 text-xs">
             <option value="all">全部位置</option>
             <option v-for="(name, key) in traitSlotLabel" :key="key" :value="key">{{ name }}</option>
           </select>
-          <div class="mt-1 max-h-24 overflow-auto ui-input px-2 py-1 text-xs">
-            <label v-for="t in filteredTraits" :key="t.id" class="mr-3 inline-flex items-center gap-1">
+          <div class="zhushen-scrollbox mt-2">
+            <label v-for="t in filteredTraits" :key="t.id" class="zhushen-option">
               <input type="checkbox" :checked="activeTraitIds.includes(t.id)" @change="() => { const next = enforceTraitSlots(toggle(activeTraitIds, t.id)); if (next) activeTraitIds = next }" />
-              {{ t.name }} ({{ traitSlotLabel[t.slot] }})
+              <span>{{ t.name }} <span class="text-[var(--text-muted)]">({{ traitSlotLabel[t.slot] }})</span></span>
             </label>
           </div>
         </div>
-        <div class="text-sm">
-          <p>最终装备（多选）</p>
+
+        <div class="zhushen-picker">
+          <p class="zhushen-picker__title">最终装备（多选）</p>
           <select v-model="equipFilter" class="ui-input mt-1 w-full px-2 py-1 text-xs">
             <option value="all">全部分类</option>
             <option v-for="(name, key) in equipSlotLabel" :key="key" :value="key">{{ name }}</option>
           </select>
-          <div class="mt-1 max-h-24 overflow-auto ui-input px-2 py-1 text-xs">
-            <label v-for="e in filteredEquips" :key="e.id" class="mr-3 inline-flex items-center gap-1">
+          <div class="zhushen-scrollbox mt-2">
+            <label v-for="e in filteredEquips" :key="e.id" class="zhushen-option">
               <input type="checkbox" :checked="activeEquipIds.includes(e.id)" @change="() => { const next = enforceEquipSlots(toggle(activeEquipIds, e.id), '最终装备'); if (next) activeEquipIds = next }" />
-              {{ e.name }} ({{ equipSlotLabel[e.slot] }})
+              <span>{{ e.name }} <span class="text-[var(--text-muted)]">({{ equipSlotLabel[e.slot] }})</span></span>
             </label>
           </div>
         </div>
-        <div class="text-sm">
-          <p>最终技能（多选）</p>
+
+        <div class="zhushen-picker">
+          <p class="zhushen-picker__title">最终技能（多选）</p>
           <select v-model="skillFilter" class="ui-input mt-1 w-full px-2 py-1 text-xs">
             <option value="all">全部属性</option>
             <option v-for="(name, key) in attrLabel" :key="key" :value="key">{{ name }}</option>
           </select>
-          <div class="mt-1 max-h-24 overflow-auto ui-input px-2 py-1 text-xs">
-            <label v-for="s in filteredSkills" :key="s.id" class="mr-3 inline-flex items-center gap-1">
+          <div class="zhushen-scrollbox mt-2">
+            <label v-for="s in filteredSkills" :key="s.id" class="zhushen-option">
               <input type="checkbox" :checked="activeSkillIds.includes(s.id)" @change="() => { const next = enforceSkillMax3(toggle(activeSkillIds, s.id), '最终技能'); if (next) activeSkillIds = next }" />
-              {{ s.name }} ({{ attrLabel[s.category] }})
+              <span>{{ s.name }} <span class="text-[var(--text-muted)]">({{ attrLabel[s.category] }})</span></span>
             </label>
           </div>
         </div>
       </div>
-    </section>
+    </SurfaceCard>
 
-    <section class="surface-card mb-4 p-4">
-      <div class="mb-2 flex items-center justify-between"><h2 class="text-base font-semibold">转职路径</h2><button class="ui-btn ui-btn--ghost" @click="addPromotion">新增</button></div>
-      <div v-for="(step, idx) in promotions" :key="idx" class="mb-3 grid grid-cols-1 gap-2 border-b border-[var(--border)] pb-3 lg:grid-cols-4">
-        <label class="text-xs">等级<input v-model.number="step.level" type="number" min="1" max="149" class="ui-input mt-1 w-full px-2 py-1" /></label>
-        <label class="text-xs">目标职业<select v-model="step.toJobId" class="ui-input mt-1 w-full px-2 py-1"><option v-for="j in jobs" :key="j.id" :value="j.id">{{ j.name }}</option></select></label>
-        <div class="text-xs">
-          <p>该步装备</p>
-          <select v-model="promoEquipFilter" class="ui-input mt-1 w-full px-2 py-1 text-xs">
-            <option value="all">全部分类</option>
-            <option v-for="(name, key) in equipSlotLabel" :key="key" :value="key">{{ name }}</option>
-          </select>
-          <div class="mt-1 max-h-24 overflow-auto ui-input px-2 py-1">
-            <label v-for="e in filteredPromoEquips" :key="e.id" class="mr-3 inline-flex items-center gap-1">
-              <input type="checkbox" :checked="step.equipIds.includes(e.id)" @change="() => { const next = enforceEquipSlots(toggle(step.equipIds, e.id), '转职步骤装备'); if (next) promotions[idx].equipIds = next }" />
-              {{ e.name }} ({{ equipSlotLabel[e.slot] }})
+    <div class="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
+      <SurfaceCard class="h-fit" body-class="p-5">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base font-semibold">转职路径</h2>
+            <p class="mt-1 text-xs text-[var(--text-muted)]">按等级顺序枚举转职，步骤中的装备与技能只参与该步达标判定。</p>
+          </div>
+          <button class="ui-btn ui-btn--ghost" @click="addPromotion">新增</button>
+        </div>
+
+        <div v-if="promotions.length === 0" class="zhushen-empty">当前没有手动转职步骤，将按初始职业一直成长到目标等级。</div>
+        <div v-for="(step, idx) in promotions" :key="idx" class="zhushen-subcard mb-3 last:mb-0">
+          <div class="grid grid-cols-1 gap-3 lg:grid-cols-[120px_minmax(0,1fr)_auto]">
+            <label class="text-xs">
+              转职等级
+              <input v-model.number="step.level" type="number" min="1" max="149" class="ui-input mt-1 w-full px-2 py-1.5" />
             </label>
+            <label class="text-xs">
+              目标职业
+              <select v-model="step.toJobId" class="ui-input mt-1 w-full px-2 py-1.5">
+                <option v-for="j in jobs" :key="j.id" :value="j.id">{{ j.name }}</option>
+              </select>
+            </label>
+            <button class="ui-btn ui-btn--ghost h-fit w-fit self-end" @click="removePromotion(idx)">删除</button>
+          </div>
+
+          <div class="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <div>
+              <p class="zhushen-picker__title">该步装备</p>
+              <select v-model="promoEquipFilter" class="ui-input mt-1 w-full px-2 py-1 text-xs">
+                <option value="all">全部分类</option>
+                <option v-for="(name, key) in equipSlotLabel" :key="key" :value="key">{{ name }}</option>
+              </select>
+              <div class="zhushen-scrollbox mt-2">
+                <label v-for="e in filteredPromoEquips" :key="e.id" class="zhushen-option">
+                  <input type="checkbox" :checked="step.equipIds.includes(e.id)" @change="() => { const next = enforceEquipSlots(toggle(step.equipIds, e.id), '转职步骤装备'); if (next) promotions[idx].equipIds = next }" />
+                  <span>{{ e.name }} <span class="text-[var(--text-muted)]">({{ equipSlotLabel[e.slot] }})</span></span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <p class="zhushen-picker__title">该步技能</p>
+              <select v-model="promoSkillFilter" class="ui-input mt-1 w-full px-2 py-1 text-xs">
+                <option value="all">全部属性</option>
+                <option v-for="(name, key) in attrLabel" :key="key" :value="key">{{ name }}</option>
+              </select>
+              <div class="zhushen-scrollbox mt-2">
+                <label v-for="s in filteredPromoSkills" :key="s.id" class="zhushen-option">
+                  <input type="checkbox" :checked="step.skillIds.includes(s.id)" @change="() => { const next = enforceSkillMax3(toggle(step.skillIds, s.id), '转职步骤技能'); if (next) promotions[idx].skillIds = next }" />
+                  <span>{{ s.name }} <span class="text-[var(--text-muted)]">({{ attrLabel[s.category] }})</span></span>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="text-xs">
-          <p>该步技能</p>
-          <select v-model="promoSkillFilter" class="ui-input mt-1 w-full px-2 py-1 text-xs">
-            <option value="all">全部属性</option>
-            <option v-for="(name, key) in attrLabel" :key="key" :value="key">{{ name }}</option>
-          </select>
-          <div class="mt-1 max-h-24 overflow-auto ui-input px-2 py-1">
-            <label v-for="s in filteredPromoSkills" :key="s.id" class="mr-3 inline-flex items-center gap-1">
-              <input type="checkbox" :checked="step.skillIds.includes(s.id)" @change="() => { const next = enforceSkillMax3(toggle(step.skillIds, s.id), '转职步骤技能'); if (next) promotions[idx].skillIds = next }" />
-              {{ s.name }} ({{ attrLabel[s.category] }})
+      </SurfaceCard>
+
+      <div class="space-y-5">
+        <SurfaceCard body-class="p-5">
+          <div class="mb-4">
+            <h2 class="text-base font-semibold">搜索配置</h2>
+            <p class="mt-1 text-xs text-[var(--text-muted)]">搜索下界已改为“精确的无转职基线路线”，不再使用高估公式参与剪枝。</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <label class="text-xs">启用<select v-model="searchEnabled" class="ui-input mt-1 w-full px-2 py-1.5"><option :value="true">true</option><option :value="false">false</option></select></label>
+            <label class="text-xs">忽略转职条件<select v-model="ignorePromotionRequirements" class="ui-input mt-1 w-full px-2 py-1.5"><option :value="true">true</option><option :value="false">false</option></select></label>
+            <label class="text-xs">参数档位<select v-model="searchProfile" class="ui-input mt-1 w-full px-2 py-1.5"><option value="safe">safe</option><option value="balanced">balanced</option><option value="aggressive">aggressive</option></select></label>
+            <label class="text-xs">评分<select v-model="scorePreset" class="ui-input mt-1 w-full px-2 py-1.5"><option value="sum">sum</option><option value="str_first">str_first</option><option value="agi_first">agi_first</option><option value="balanced">balanced</option></select></label>
+            <label class="text-xs">Beam<input v-model.number="beamWidth" type="number" min="10" max="5000" class="ui-input mt-1 w-full px-2 py-1.5" /></label>
+            <label class="text-xs">最大转职<input v-model.number="maxTransfer" type="number" min="0" max="20" class="ui-input mt-1 w-full px-2 py-1.5" /></label>
+            <label class="text-xs">跨阶<input v-model.number="maxTierDelta" type="number" min="0" max="3" class="ui-input mt-1 w-full px-2 py-1.5" /></label>
+            <label class="text-xs">步内技能<input v-model.number="maxSkillPerStep" type="number" min="0" max="3" class="ui-input mt-1 w-full px-2 py-1.5" /></label>
+          </div>
+
+          <div class="mt-3">
+            <label class="text-xs">
+              目标终点职业
+              <select v-model="searchTargetFinalJobId" class="ui-input mt-1 w-full px-2 py-1.5">
+                <option v-for="j in jobs" :key="j.id" :value="j.id">{{ j.name }}</option>
+              </select>
             </label>
           </div>
-        </div>
-        <button class="ui-btn ui-btn--ghost w-fit" @click="removePromotion(idx)">删除</button>
-      </div>
-    </section>
 
-    <section class="surface-card mb-4 p-4">
-      <h2 class="mb-2 text-base font-semibold">搜索配置</h2>
-      <div class="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <label class="text-xs">启用<select v-model="searchEnabled" class="ui-input mt-1 w-full px-2 py-1"><option :value="true">true</option><option :value="false">false</option></select></label>
-        <label class="text-xs">忽略转职条件<select v-model="ignorePromotionRequirements" class="ui-input mt-1 w-full px-2 py-1"><option :value="true">true</option><option :value="false">false</option></select></label>
-        <label class="text-xs">参数档位<select v-model="searchProfile" class="ui-input mt-1 w-full px-2 py-1"><option value="safe">safe</option><option value="balanced">balanced</option><option value="aggressive">aggressive</option></select></label>
-        <label class="text-xs">Beam<input v-model.number="beamWidth" type="number" min="10" max="5000" class="ui-input mt-1 w-full px-2 py-1" /></label>
-        <label class="text-xs">最大转职<input v-model.number="maxTransfer" type="number" min="0" max="20" class="ui-input mt-1 w-full px-2 py-1" /></label>
-        <label class="text-xs">跨阶<input v-model.number="maxTierDelta" type="number" min="0" max="3" class="ui-input mt-1 w-full px-2 py-1" /></label>
-        <label class="text-xs">步内技能<input v-model.number="maxSkillPerStep" type="number" min="0" max="3" class="ui-input mt-1 w-full px-2 py-1" /></label>
-        <label class="text-xs">评分<select v-model="scorePreset" class="ui-input mt-1 w-full px-2 py-1"><option value="sum">sum</option><option value="str_first">str_first</option><option value="agi_first">agi_first</option><option value="balanced">balanced</option></select></label>
-        <label class="text-xs">目标终点职业<select v-model="searchTargetFinalJobId" class="ui-input mt-1 w-full px-2 py-1"><option v-for="j in jobs" :key="j.id" :value="j.id">{{ j.name }}</option></select></label>
-        <div class="text-xs"><p>搜索最终装备</p><div class="mt-1 max-h-24 overflow-auto ui-input px-2 py-1"><label v-for="e in equips" :key="e.id" class="mr-3 inline-flex items-center gap-1"><input type="checkbox" :checked="searchFinalEquipIds.includes(e.id)" @change="() => { const next = enforceEquipSlots(toggle(searchFinalEquipIds, e.id), '搜索最终装备'); if (next) searchFinalEquipIds = next }" />{{ e.name }} ({{ equipSlotLabel[e.slot] }})</label></div></div>
-        <div class="text-xs"><p>搜索最终技能</p><div class="mt-1 max-h-24 overflow-auto ui-input px-2 py-1"><label v-for="s in skills" :key="s.id" class="mr-3 inline-flex items-center gap-1"><input type="checkbox" :checked="searchFinalSkillIds.includes(s.id)" @change="() => { const next = enforceSkillMax3(toggle(searchFinalSkillIds, s.id), '搜索最终技能'); if (next) searchFinalSkillIds = next }" />{{ s.name }} ({{ attrLabel[s.category] }})</label></div></div>
-      </div>
-      <p v-if="searchRiskWarning" class="mt-2 text-xs text-[var(--warn-text)]">{{ searchRiskWarning }}</p>
-      <p class="mt-1 text-xs text-[var(--text-muted)]">
-        生效参数: Beam={{ constrainedSearchParams.beamWidth }} / 最大转职={{ constrainedSearchParams.maxTransfer }} / 跨阶={{ constrainedSearchParams.maxTierDelta }} / 步内技能={{ constrainedSearchParams.maxSkillPerStep }}
-      </p>
-      <label v-if="searchProfile === 'aggressive'" class="mt-1 inline-flex items-center gap-2 text-xs text-[var(--warn-text)]">
-        <input v-model="aggressiveConfirmed" type="checkbox" />
-        我已确认激进档可能导致耗时显著增加
-      </label>
-    </section>
+          <div class="mt-3 grid grid-cols-1 gap-3">
+            <div class="zhushen-picker">
+              <p class="zhushen-picker__title">搜索最终装备</p>
+              <div class="zhushen-scrollbox mt-2">
+                <label v-for="e in equips" :key="e.id" class="zhushen-option">
+                  <input type="checkbox" :checked="searchFinalEquipIds.includes(e.id)" @change="() => { const next = enforceEquipSlots(toggle(searchFinalEquipIds, e.id), '搜索最终装备'); if (next) searchFinalEquipIds = next }" />
+                  <span>{{ e.name }} <span class="text-[var(--text-muted)]">({{ equipSlotLabel[e.slot] }})</span></span>
+                </label>
+              </div>
+            </div>
+            <div class="zhushen-picker">
+              <p class="zhushen-picker__title">搜索最终技能</p>
+              <div class="zhushen-scrollbox mt-2">
+                <label v-for="s in skills" :key="s.id" class="zhushen-option">
+                  <input type="checkbox" :checked="searchFinalSkillIds.includes(s.id)" @change="() => { const next = enforceSkillMax3(toggle(searchFinalSkillIds, s.id), '搜索最终技能'); if (next) searchFinalSkillIds = next }" />
+                  <span>{{ s.name }} <span class="text-[var(--text-muted)]">({{ attrLabel[s.category] }})</span></span>
+                </label>
+              </div>
+            </div>
+          </div>
 
-    <section class="surface-card mb-4 p-4">
-      <div class="mb-2 flex items-center justify-between"><h2 class="text-base font-semibold">本地临时添加</h2><button class="ui-btn ui-btn--ghost" @click="resetCustom">重置</button></div>
-      <div class="grid grid-cols-1 gap-3 lg:grid-cols-4">
-        <div><p class="mb-1 text-sm">职业 JSON</p><textarea v-model="newJobJson" rows="7" class="ui-input w-full px-2 py-1 text-xs" /><button class="ui-btn ui-btn--primary mt-1" @click="addCustomJob">保存</button></div>
-        <div><p class="mb-1 text-sm">装备 JSON</p><textarea v-model="newEquipJson" rows="7" class="ui-input w-full px-2 py-1 text-xs" /><button class="ui-btn ui-btn--primary mt-1" @click="addCustomEquip">保存</button></div>
-        <div><p class="mb-1 text-sm">技能 JSON</p><textarea v-model="newSkillJson" rows="7" class="ui-input w-full px-2 py-1 text-xs" /><button class="ui-btn ui-btn--primary mt-1" @click="addCustomSkill">保存</button></div>
-        <div><p class="mb-1 text-sm">特性 JSON</p><textarea v-model="newTraitJson" rows="7" class="ui-input w-full px-2 py-1 text-xs" /><button class="ui-btn ui-btn--primary mt-1" @click="addCustomTrait">保存</button></div>
-      </div>
-    </section>
+          <p v-if="searchRiskWarning" class="mt-3 text-xs text-[var(--warn-text)]">{{ searchRiskWarning }}</p>
+          <p class="mt-2 text-xs text-[var(--text-muted)]">
+            生效参数: Beam={{ constrainedSearchParams.beamWidth }} / 最大转职={{ constrainedSearchParams.maxTransfer }} / 跨阶={{ constrainedSearchParams.maxTierDelta }} / 步内技能={{ constrainedSearchParams.maxSkillPerStep }}
+          </p>
+          <label v-if="searchProfile === 'aggressive'" class="mt-2 inline-flex items-center gap-2 text-xs text-[var(--warn-text)]">
+            <input v-model="aggressiveConfirmed" type="checkbox" />
+            我已确认激进档可能导致耗时显著增加
+          </label>
+        </SurfaceCard>
 
-    <div class="mb-4">
+        <SurfaceCard body-class="p-5">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-base font-semibold">本地临时添加</h2>
+              <p class="mt-1 text-xs text-[var(--text-muted)]">用于临时扩充职业、装备、技能、特性数据，不会改动内置数据源。</p>
+            </div>
+            <button class="ui-btn ui-btn--ghost" @click="resetCustom">重置</button>
+          </div>
+          <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <div><p class="mb-1 text-sm">职业 JSON</p><textarea v-model="newJobJson" rows="7" class="ui-input w-full px-2 py-1 text-xs" /><button class="ui-btn ui-btn--primary mt-2" @click="addCustomJob">保存</button></div>
+            <div><p class="mb-1 text-sm">装备 JSON</p><textarea v-model="newEquipJson" rows="7" class="ui-input w-full px-2 py-1 text-xs" /><button class="ui-btn ui-btn--primary mt-2" @click="addCustomEquip">保存</button></div>
+            <div><p class="mb-1 text-sm">技能 JSON</p><textarea v-model="newSkillJson" rows="7" class="ui-input w-full px-2 py-1 text-xs" /><button class="ui-btn ui-btn--primary mt-2" @click="addCustomSkill">保存</button></div>
+            <div><p class="mb-1 text-sm">特性 JSON</p><textarea v-model="newTraitJson" rows="7" class="ui-input w-full px-2 py-1 text-xs" /><button class="ui-btn ui-btn--primary mt-2" @click="addCustomTrait">保存</button></div>
+          </div>
+        </SurfaceCard>
+      </div>
+    </div>
+
+    <SurfaceCard as="div" class="my-5" body-class="p-4 sm:p-5">
       <div class="flex flex-wrap items-center gap-2">
         <button class="ui-btn ui-btn--primary" :disabled="searchPending" @click="calculate">{{ searchPending ? '搜索中...' : '计算' }}</button>
         <button class="ui-btn ui-btn--ghost" @click="exportDebugSnapshot">导出快照</button>
@@ -575,7 +347,7 @@ onBeforeUnmount(() => {
           <input class="hidden" type="file" accept="application/json" @change="importDebugSnapshot" />
         </label>
       </div>
-      <div v-if="searchPending && searchProgress" class="mt-2">
+      <div v-if="searchPending && searchProgress" class="mt-3">
         <progress class="h-2 w-full" :max="searchProgress.totalSteps" :value="searchProgress.step" />
         <p class="text-sm text-[var(--text-muted)]">
           搜索进度: {{ searchProgress.step }}/{{ searchProgress.totalSteps }} | Beam: {{ searchProgress.beamSize }} | 候选: {{ searchProgress.candidateSize }}
@@ -589,24 +361,115 @@ onBeforeUnmount(() => {
       </div>
       <p v-if="selectionError" class="mt-2 text-sm text-[var(--warn-text)]">{{ selectionError }}</p>
       <p v-if="errorText" class="mt-2 text-sm text-[var(--warn-text)]">{{ errorText }}</p>
-    </div>
+    </SurfaceCard>
 
     <section v-if="output" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <article class="surface-card p-4"><h2 class="mb-2 text-base font-semibold">最终结果</h2><p class="mb-1 text-sm text-[var(--text-muted)]">当前职业：{{ output.jobName }}</p><p class="mb-2 text-sm">{{ formatVec(output.final) }}</p><p class="text-xs text-[var(--text-muted)]">成长累计：{{ formatVec(output.growthAcc) }}</p></article>
-      <article class="surface-card p-4"><h2 class="mb-2 text-base font-semibold">转职日志</h2><p v-if="output.logs.length === 0" class="text-sm text-[var(--text-muted)]">无转职</p><ul v-else class="space-y-1 text-sm"><li v-for="item in output.logs" :key="item">{{ item }}</li></ul></article>
+      <SurfaceCard as="article" decorative motion-key="zhushen:simulator:result" body-class="p-5">
+        <h2 class="mb-2 text-base font-semibold">最终结果</h2>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div class="zhushen-result-block">
+            <p class="text-xs text-[var(--text-muted)]">当前职业</p>
+            <p class="mt-1 text-lg font-semibold text-[var(--text-primary)]">{{ output.jobName }}</p>
+          </div>
+          <div class="zhushen-result-block">
+            <p class="text-xs text-[var(--text-muted)]">成长累计</p>
+            <p class="mt-1 text-sm">{{ formatVec(output.growthAcc) }}</p>
+          </div>
+        </div>
+        <div class="zhushen-result-block mt-3">
+          <p class="text-xs text-[var(--text-muted)]">最终面板</p>
+          <p class="mt-1 text-sm">{{ formatVec(output.final) }}</p>
+        </div>
+      </SurfaceCard>
+
+      <SurfaceCard as="article" body-class="p-5">
+        <h2 class="mb-2 text-base font-semibold">转职日志</h2>
+        <p v-if="output.logs.length === 0" class="text-sm text-[var(--text-muted)]">无转职</p>
+        <ul v-else class="space-y-2 text-sm">
+          <li v-for="item in output.logs" :key="item" class="zhushen-log-line">{{ item }}</li>
+        </ul>
+      </SurfaceCard>
     </section>
 
-    <section v-if="searchSummary" class="mt-4 surface-card p-4">
+    <SurfaceCard v-if="searchSummary" class="mt-4" body-class="p-5">
       <h2 class="mb-2 text-base font-semibold">Beam Search 结果</h2>
       <p class="text-sm text-[var(--text-muted)]">
         已探索状态数: {{ searchSummary.exploredStates }} | 支配剪枝数: {{ searchSummary.prunedByDominance }}
       </p>
-      <ul class="mt-2 space-y-1 text-sm">
-        <li v-for="plan in topPlans" :key="plan.rank" class="flex flex-col gap-1 border-b border-[var(--border)] pb-2">
+      <ul class="mt-3 space-y-2 text-sm">
+        <li v-for="plan in topPlans" :key="plan.rank" class="zhushen-subcard flex flex-col gap-2">
           <span>#{{ plan.rank }} 评分={{ plan.score.toFixed(4) }} | {{ formatVec(plan.final) }} | 路线: {{ plan.route }}</span>
           <button class="ui-btn ui-btn--ghost w-fit" @click="applyPlanToManual(plan)">一键回填到手动路线</button>
         </li>
       </ul>
-    </section>
+    </SurfaceCard>
   </main>
 </template>
+
+<style scoped>
+.zhushen-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.zhushen-subcard,
+.zhushen-picker,
+.zhushen-result-block,
+.zhushen-empty,
+.zhushen-log-line {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.02);
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.58)) saturate(112%);
+}
+
+.zhushen-subcard,
+.zhushen-picker,
+.zhushen-result-block,
+.zhushen-empty {
+  padding: 14px;
+}
+
+.zhushen-stat-field {
+  display: block;
+  font-size: 12px;
+}
+
+.zhushen-stat-label,
+.zhushen-picker__title {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.zhushen-scrollbox {
+  max-height: 152px;
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: transparent;
+  padding: 8px 10px;
+}
+
+.zhushen-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.zhushen-option input {
+  margin-top: 2px;
+}
+
+.zhushen-empty {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.zhushen-log-line {
+  padding: 10px 12px;
+}
+</style>

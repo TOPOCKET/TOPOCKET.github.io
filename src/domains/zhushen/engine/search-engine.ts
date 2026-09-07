@@ -3,7 +3,7 @@
  * @description 诸神搜索双引擎统一入口。
  */
 import type { SearchProgress, SearchResult, SimulationInput } from '@/domains/zhushen/model/zhushen-model'
-import type { SearchRuntimeOptions } from './simulator-core'
+import type { SearchRuntimeOptions } from './search-runtime'
 import { searchZhushenPlansByAstarBnbMvp } from './astar-bnb-solver'
 
 type ProgressCallback = (progress: SearchProgress) => void

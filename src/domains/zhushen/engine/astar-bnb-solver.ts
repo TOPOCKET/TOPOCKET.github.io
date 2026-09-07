@@ -3,9 +3,11 @@
  * @description A-star / BnB 在线快速近最优 MVP（单次搜索内收缩）。
  */
 import type { AttrVector, ScorePreset, SearchProgress, SearchResult, SimulationInput } from '@/domains/zhushen/model/zhushen-model'
-import { searchZhushenPlans, type SearchRuntimeOptions } from './simulator-core'
+import type { SearchRuntimeOptions } from './search-runtime'
+import { searchZhushenPlans } from './simulator-core'
 
 type ProgressCallback = (progress: SearchProgress) => void
+const ZERO_VEC: AttrVector = { str: 0, tec: 0, agi: 0, con: 0, per: 0, wil: 0 }
 
 const scoreVec = (v: AttrVector, preset: ScorePreset, custom?: Partial<AttrVector>): number => {
   if (preset === 'str_first') return v.str * 3 + v.con * 1.2 + v.agi + v.tec + v.per + v.wil
@@ -33,31 +35,42 @@ const addVec = (a: AttrVector, b: AttrVector): AttrVector => ({
   wil: a.wil + b.wil,
 })
 
-const mulVec = (v: AttrVector, k: number): AttrVector => ({
-  str: v.str * k,
-  tec: v.tec * k,
-  agi: v.agi * k,
-  con: v.con * k,
-  per: v.per * k,
-  wil: v.wil * k,
+const scaleVec = (a: AttrVector, m: number): AttrVector => ({
+  str: a.str * m,
+  tec: a.tec * m,
+  agi: a.agi * m,
+  con: a.con * m,
+  per: a.per * m,
+  wil: a.wil * m,
 })
+
+const sumStatsByIds = <T extends { id: string; stat: AttrVector }>(source: T[], ids: string[]): AttrVector => {
+  const byId = new Map(source.map((item) => [item.id, item.stat]))
+  return ids.reduce((acc, id) => addVec(acc, byId.get(id) ?? ZERO_VEC), ZERO_VEC)
+}
+
+const levelFactor = (level: number): number => (level >= 60 ? 0.35 : 1)
 
 const estimateLowerBoundScore = (input: SimulationInput): number => {
   const search = input.search
   if (!search) return 0
-  const init = input.jobs.find((j) => j.id === input.initialJobId)
-  if (!init) return 0
-  const levels = Math.max(0, input.targetLevel - 1)
-  const base = addVec(input.character.base, input.character.trait)
-  const finalEquip = input.equips
-    .filter((e) => search.finalActiveEquipIds.includes(e.id))
-    .reduce((acc, e) => addVec(acc, e.stat), { str: 0, tec: 0, agi: 0, con: 0, per: 0, wil: 0 })
-  const finalSkill = input.skills
-    .filter((s) => search.finalActiveSkillIds.includes(s.id))
-    .reduce((acc, s) => addVec(acc, s.stat), { str: 0, tec: 0, agi: 0, con: 0, per: 0, wil: 0 })
-  const growth = addVec(mulVec(input.character.growth, levels), mulVec(init.growth, levels))
-  const finalVec = addVec(addVec(addVec(base, init.panel), growth), addVec(finalEquip, finalSkill))
-  return scoreVec(finalVec, search.scorePreset, search.scoreWeights)
+  const initialJob = input.jobs.find((job) => job.id === input.initialJobId)
+  if (!initialJob) return 0
+  let growthAcc: AttrVector = ZERO_VEC
+  const growthPerLevel = addVec(input.character.growth, initialJob.growth)
+  for (let level = 1; level < input.targetLevel; level += 1) {
+    growthAcc = addVec(growthAcc, scaleVec(growthPerLevel, levelFactor(level)))
+  }
+  const final = [
+    input.character.base,
+    input.character.trait,
+    sumStatsByIds(input.traits, input.activeTraitIds),
+    initialJob.panel,
+    growthAcc,
+    sumStatsByIds(input.equips, search.finalActiveEquipIds),
+    sumStatsByIds(input.skills, search.finalActiveSkillIds),
+  ].reduce(addVec)
+  return scoreVec(final, search.scorePreset, search.scoreWeights)
 }
 
 const pickFirstStepJobIdsHeuristic = (input: SimulationInput): string[] => {

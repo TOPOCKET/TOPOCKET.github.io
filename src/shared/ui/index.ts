@@ -5,4 +5,5 @@
 export { default as BlobLayer } from './components/BlobLayer.vue'
 export { default as CategoryFilter } from './components/CategoryFilter.vue'
 export { default as SearchBox } from './components/SearchBox.vue'
+export { default as SurfaceCard } from './components/SurfaceCard.vue'
 export { default as ToolCard } from './components/ToolCard.vue'

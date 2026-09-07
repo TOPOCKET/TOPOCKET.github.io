@@ -6,6 +6,7 @@
 ## 1. 业务目标
 
 - 支持手选路线模拟：输入角色与转职路线，计算最终属性。
+- 手选模拟输入需覆盖：角色基础属性、角色固有特性、角色成长六维、最终装备/技能/特性、转职路线。
 - 支持自动搜索：在性能可接受前提下给出“最优转职路线与最优属性结果”（当前定义为评分最优）。
 - 角色等级范围：`1 -> 150`。
 - 成长规则：每级增量 = `角色自带成长 + 当前职业成长`，且从 `Lv60` 开始成长衰减系数为 `0.35`。
@@ -44,3 +45,11 @@
 - 默认稳定基线：`off_off`（`enableGroupMinorBucket=false`, `enableComboPriorityOrder=false`）。
 - 高风险策略新增时先开关化，默认 `off`。
 - 仅当 A/B 在回放基准稳定收益后，才允许调整默认值。
+
+## 6. 实现边界
+
+- 页面状态、搜索参数、结果映射、自定义 JSON 和快照导入导出统一收敛到 `page` 同级的 `composables/`，页面组件只承担布局与交互绑定。
+- 手动路线模拟入口为 `engine/simulation-runner.ts`，搜索流程入口保留在 `engine/simulator-core.ts`。
+- 搜索组合枚举集中在 `engine/search-combinations.ts`，评分与 `Vec6` 运算集中在 `engine/search-vectors.ts`。
+- WASM 运行能力通过 `engine/search-runtime.ts` 注入，前端加载适配仍归属 `wasm/zhushen-wasm.ts`。
+- Worker 默认接收主线程已通过 `zhushenSimulationInputSchema` 校验的输入，避免在 worker 产物中重复打包校验 schema。
