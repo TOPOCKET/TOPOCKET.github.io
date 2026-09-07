@@ -136,4 +136,4 @@ export const sumStatsByIds = <T extends { id: string; stat: AttrVector }>(source
  * @param level 等级。
  * @returns 成长系数。
  */
-export const levelFactor = (level: number): number => (level >= 60 ? 0.35 : 1)
+export const levelFactor = (level: number): number => (level > 60 ? 0.35 : 1)

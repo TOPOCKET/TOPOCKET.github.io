@@ -49,7 +49,7 @@ const sumStatsByIds = <T extends { id: string; stat: AttrVector }>(source: T[], 
   return ids.reduce((acc, id) => addVec(acc, byId.get(id) ?? ZERO_VEC), ZERO_VEC)
 }
 
-const levelFactor = (level: number): number => (level >= 60 ? 0.35 : 1)
+const levelFactor = (level: number): number => (level > 60 ? 0.35 : 1)
 
 const estimateLowerBoundScore = (input: SimulationInput): number => {
   const search = input.search

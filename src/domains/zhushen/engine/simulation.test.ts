@@ -49,4 +49,16 @@ describe('domains/zhushen/engine/simulation', () => {
     expect(result.currentJob.id).toBe('warrior')
     expect(result.logs.length).toBeGreaterThan(0)
   })
+
+  it('keeps level 60 at full growth and applies decay from level 61', () => {
+    const input = baseInput()
+    input.targetLevel = 150
+    input.character.growth = vec(1)
+    input.jobs[0].growth = vec(0)
+    input.jobs[0].panel = vec(0)
+
+    const result = runZhushenSimulation(input)
+    expect(result.growthAcc.str).toBe(91.15)
+    expect(result.final.str).toBe(91.15)
+  })
 })
