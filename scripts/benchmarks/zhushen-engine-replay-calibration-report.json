@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-07T10:04:57.547Z",
+  "generatedAt": "2026-09-07T10:08:25.758Z",
   "snapshotId": "live_replay_v1",
   "description": "real-world replay baseline (full jobs + high-risk search params)",
   "rounds": 3,
@@ -17,21 +17,21 @@
     "perfBreakdown": null
   },
   "astarBnbMvp": {
-    "medianMs": 6984.16,
+    "medianMs": 5480.28,
     "roundsMs": [
-      7737.95,
-      6984.16,
-      6093.4
+      7114.88,
+      5313.55,
+      5480.28
     ],
     "exploredStates": 293737,
     "bestScore": 2664.9175,
     "routeSignature": "4:priest|147:magic-archer|149:royal-knight",
     "perfBreakdown": {
-      "promoEnumMs": 5726,
-      "comboCheckMs": 3887,
+      "promoEnumMs": 5057,
+      "comboCheckMs": 4610,
       "routePruneMs": 0,
       "groupPruneMs": 0,
-      "scoreRankMs": 356,
+      "scoreRankMs": 409,
       "comboTried": 359199,
       "comboPassed": 286430,
       "routeChecks": 71154,
@@ -40,7 +40,7 @@
     "step3Detail": null
   },
   "compare": {
-    "medianDeltaMs": -112975.32,
+    "medianDeltaMs": -114479.2,
     "scoreGapPercentVsBeam": 0.6989,
     "routeSignatureMatch": true,
     "mode": "astar_only_vs_readme_baseline"

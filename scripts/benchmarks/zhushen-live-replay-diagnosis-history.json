@@ -6,6 +6,20 @@
       "exploredStates": 260733,
       "routeChecks": 70810,
       "groupChecks": 1299403
+    },
+    {
+      "generatedAt": "2026-09-07T10:04:57.547Z",
+      "durationMsMedian": 6984.16,
+      "exploredStates": 293737,
+      "routeChecks": 71154,
+      "groupChecks": 1237498
+    },
+    {
+      "generatedAt": "2026-09-07T10:08:25.758Z",
+      "durationMsMedian": 5480.28,
+      "exploredStates": 293737,
+      "routeChecks": 71154,
+      "groupChecks": 1237498
     }
   ]
 }

@@ -32,7 +32,6 @@ import {
   addVec6From,
   addVec6Into,
   attrFromVec6,
-  dominatesVec6,
   factorPrefix,
   factorRange,
   geVec6,
@@ -127,6 +126,9 @@ export const searchZhushenPlans = async (
   validateSkillCount(search.finalActiveSkillIds, 'search.finalActiveSkillIds')
   const equipLoadouts = buildEquipLoadouts(input.equips)
   const skillLoadouts = combinations(input.skills.map((s) => s.id), Math.min(search.maxSkillPerStep, 3))
+  const skillLoadoutCount = skillLoadouts.length
+  const comboCount = equipLoadouts.length * skillLoadoutCount
+  const defaultComboOrder = Array.from({ length: comboCount }, (_, i) => i)
   const equipVecByLoadout = equipLoadouts.map((ids) => vec6FromAttr(sumStatsByIds(input.equips, ids, 'search equip')))
   const skillVecByLoadout = skillLoadouts.map((ids) => vec6FromAttr(sumStatsByIds(input.skills, ids, 'search skill')))
   const comboOrderByJob = new Map<number, number[]>()
@@ -173,12 +175,12 @@ export const searchZhushenPlans = async (
     const cached = comboOrderByJob.get(targetJobIndex)
     if (cached) return cached
     const req = jobRequireVec[targetJobIndex]
-    const arr = new Array<number>(equipLoadouts.length * skillLoadouts.length)
+    const arr = new Array<number>(comboCount)
     const scoreArr = new Float32Array(arr.length)
     for (let i = 0; i < arr.length; i += 1) {
       arr[i] = i
-      const equipIdx = Math.floor(i / skillLoadouts.length)
-      const skillIdx = i % skillLoadouts.length
+      const equipIdx = Math.floor(i / skillLoadoutCount)
+      const skillIdx = i % skillLoadoutCount
       let score = 0
       for (let k = 0; k < 6; k += 1) {
         const bonus = equipVecByLoadout[equipIdx][k] + skillVecByLoadout[skillIdx][k]
@@ -834,9 +836,6 @@ type Bucket = {
           if (job.tier - target.tier > 1) continue
 
           if (stateTransfer === 0 && firstStepAllowed && !firstStepAllowed.has(target.id)) continue
-          // 当目标职业成长向量严格支配当前职业时，同一装备/技能组合仅需保留“最早可行转职等级”
-          const preferEarliestPromotion = dominatesVec6(jobGrowthVec[targetJobIndex], jobGrowthVec[stateJobIndex])
-          const comboLocked = preferEarliestPromotion ? new Uint8Array(equipLoadouts.length * skillLoadouts.length) : null
           // P2: 当前等级转职可行域上界剪枝
           addVec6From(tempCheck, tempPanelBase, maxStepEquipSkillVec)
           if (!geVec6(tempCheck, jobRequireVec[targetJobIndex])) continue
@@ -858,7 +857,7 @@ type Bucket = {
             if (!geVec6(tempFinalReachUpper, targetFinalRequireVec)) continue
           }
           let passFlags: Uint8Array | null = null
-          if (runtime?.wasmCore && equipVecByLoadout.length * skillVecByLoadout.length >= 256) {
+          if (runtime?.wasmCore && comboCount >= 256) {
             for (let k = 0; k < 6; k += 1) reusableComboPanel[k] = tempPanelBase[k]
             for (let k = 0; k < 6; k += 1) reusableComboReq[k] = jobRequireVec[targetJobIndex][k]
             passFlags = runtime.wasmCore.comboPassFlags(
@@ -872,7 +871,7 @@ type Bucket = {
           }
           const comboOrder = enableComboPriorityOrder
             ? buildComboOrderForJob(targetJobIndex)
-            : Array.from({ length: equipLoadouts.length * skillLoadouts.length }, (_, i) => i)
+            : defaultComboOrder
           const comboTryLimit = enableComboPriorityOrder
             ? Math.max(32, Math.min(comboOrder.length, Math.floor(search.beamWidth / 2)))
             : comboOrder.length
@@ -886,9 +885,8 @@ type Bucket = {
             if (comboAccepted >= perTargetJobCap) break
             totalComboTried += 1
             const flatIdx = comboOrder[orderIdx]
-            const equipIdx = Math.floor(flatIdx / skillLoadouts.length)
-            const skillIdx = flatIdx % skillLoadouts.length
-            if (comboLocked && comboLocked[flatIdx] === 1) continue
+            const equipIdx = Math.floor(flatIdx / skillLoadoutCount)
+            const skillIdx = flatIdx % skillLoadoutCount
             if (passFlags) {
               if (passFlags[flatIdx] !== 1) continue
             } else {
@@ -918,7 +916,6 @@ type Bucket = {
             )
             comboAccepted += 1
             totalComboPassed += 1
-            if (comboLocked) comboLocked[flatIdx] = 1
             exploredStates += 1
             opCounter += 1
             if (opCounter % 200000 === 0) {
