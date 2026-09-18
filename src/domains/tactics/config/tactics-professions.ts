@@ -10,6 +10,22 @@ export const tacticsProfessions: TacticsProfession[] = [
   { id: 'psionic-medic', name: '灵能医师', attackStyle: 'ranged', hasSummonKit: false, damageType: 'psionic', skillFocus: 'healing', survivalFocus: 'evasion', passiveSkillId: 'dodge', energy: { max: 5, regen: 1, name: '念力', color: '#c084fc' }, initialAttributes: { strength: 2, technique: 3, agility: 6, constitution: 6, perception: 4, willpower: 9 }, attributeGrowthWeights: { strength: 1, technique: 1, agility: 3, constitution: 3, perception: 2, willpower: 5 } },
   { id: 'templar-guard', name: '圣堂卫士', attackStyle: 'melee', hasSummonKit: false, damageType: 'physical', skillFocus: 'buff', survivalFocus: 'defense', passiveSkillId: 'guard', energy: { max: 5, regen: 2, name: '体力', color: '#fb7185' }, initialAttributes: { strength: 8, technique: 3, agility: 3, constitution: 9, perception: 3, willpower: 5 }, attributeGrowthWeights: { strength: 4, technique: 1, agility: 1, constitution: 5, perception: 1, willpower: 3 } },
 ]
+const makeKit = (profession: TacticsProfession): TacticsSkill[] => {
+  const prefix = profession.id; const damage = profession.damageType; const focus = profession.skillFocus
+  const coreEffect = focus === 'healing' ? 'heal' : focus === 'buff' ? 'buff' : 'damage'
+  return [
+    { id: `${prefix}-core-single`, name: `${profession.name}·精准施展`, kind: 'active', slot: 'main', energyCost: 2, baseWeight: 100, effect: coreEffect, value: 5, range: 3, damageTypes: [damage], focuses: [focus] },
+    { id: `${prefix}-core-area`, name: `${profession.name}·扩散施展`, kind: 'active', slot: 'main', energyCost: 3, baseWeight: 100, effect: coreEffect, value: 3, range: 3, duration: 1, damageTypes: [damage], focuses: [focus] },
+    { id: `${prefix}-tactic-bleed`, name: `${profession.name}·余震`, kind: 'active', slot: 'secondary', energyCost: 0, baseWeight: 100, effect: 'bleed', value: 2, duration: 2, damageTypes: [damage], focuses: [focus] },
+    { id: `${prefix}-tactic-strike`, name: `${profession.name}·追击`, kind: 'active', slot: 'secondary', energyCost: 0, baseWeight: 100, effect: 'damage', value: 2, damageTypes: [damage], focuses: [focus] },
+    { id: `${prefix}-tactic-mend`, name: `${profession.name}·调息`, kind: 'active', slot: 'secondary', energyCost: 0, baseWeight: 100, effect: 'heal', value: 2, damageTypes: [damage], focuses: [focus] },
+    { id: `${prefix}-tactic-ward`, name: `${profession.name}·屏障`, kind: 'active', slot: 'secondary', energyCost: 0, baseWeight: 100, effect: 'buff', value: 2, damageTypes: [damage], focuses: [focus] },
+    { id: `${prefix}-passive-guard`, name: `${profession.name}·坚韧`, kind: 'passive', slot: 'passive', baseWeight: 100, effect: 'defense', value: 1, damageTypes: [damage], focuses: [focus] },
+    { id: `${prefix}-passive-flow`, name: `${profession.name}·灵动`, kind: 'passive', slot: 'passive', baseWeight: 100, effect: 'evasion', value: 8, damageTypes: [damage], focuses: [focus] },
+  ]
+}
+tacticsSkills.push(...tacticsProfessions.flatMap(makeKit))
+export const professionSkillIds = (professionId: string) => tacticsSkills.filter((skill) => skill.id.startsWith(`${professionId}-`)).map((skill) => skill.id)
 export const professionById = (id: string) => tacticsProfessions.find((item) => item.id === id)
 export const skillById = (id: string) => tacticsSkills.find((item) => item.id === id)
 export const skillWeight = (profession: TacticsProfession, skill: TacticsSkill) => skill.baseWeight + (skill.attackStyles?.includes(profession.attackStyle) ? 20 : 0) + (skill.damageTypes?.includes(profession.damageType) ? 20 : 0) + (skill.focuses?.includes(profession.skillFocus) ? 50 : 0) + (skill.survivals?.includes(profession.survivalFocus) ? 50 : 0)

@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import { addCustomHero, attackWithSelectedUnit, claimVictoryRewards, createInitialTacticsSave, endPlayerTurn, getMovableCells, getMoveThenAttackLandings, learnDraftSkill, moveSelectedUnit, moveThenAttackWithSelectedUnit, startTacticsBattle, trainHeroStat } from './tactics-engine'
+import { professionSkillIds, tacticsProfessions, tacticsSkills } from '../config/tactics-professions'
 
 describe('tactics engine', () => {
   it('starts a battle with player and enemy units', () => {
     const save = startTacticsBattle(createInitialTacticsSave())
     expect(save.battle?.units.some((unit) => unit.side === 'player')).toBe(true)
     expect(save.battle?.units.some((unit) => unit.side === 'enemy')).toBe(true)
+  })
+
+  it('gives every profession a complete two-core, four-tactical, two-passive skill library', () => {
+    for (const profession of tacticsProfessions) {
+      const skills = professionSkillIds(profession.id).map((id) => tacticsSkills.find((skill) => skill.id === id)!)
+      expect(skills.filter((skill) => skill.slot === 'main')).toHaveLength(2)
+      expect(skills.filter((skill) => skill.slot === 'secondary')).toHaveLength(4)
+      expect(skills.filter((skill) => skill.slot === 'passive')).toHaveLength(2)
+      expect(skills.every((skill) => skill.damageTypes?.includes(profession.damageType))).toBe(true)
+    }
   })
 
   it('grants growth rewards after victory', () => {
@@ -50,10 +61,10 @@ describe('tactics engine', () => {
   it('spends one training point on a valid hero stat only', () => {
     const save = createInitialTacticsSave()
     save.heroes[0].training = 1
-    const trained = trainHeroStat(save, save.heroes[0].id, 'atk')
+    const trained = trainHeroStat(save, save.heroes[0].id, 'strength')
     expect(trained.heroes[0]).toMatchObject({ training: 0, level: 2 })
-    expect(trained.heroes[0].stats.atk).toBe(save.heroes[0].stats.atk + 1)
-    expect(trainHeroStat(save, 'missing', 'atk')).toStrictEqual(save)
+    expect(trained.heroes[0].attributes.strength).toBeGreaterThan(save.heroes[0].attributes.strength)
+    expect(trainHeroStat(save, 'missing', 'strength')).toStrictEqual(save)
   })
 
   it('does not add a blank custom hero', () => {
@@ -93,14 +104,14 @@ describe('tactics engine', () => {
   it('can atomically move then attack and preserves separate action counters', () => {
     const save = startTacticsBattle(createInitialTacticsSave())
     const battle = save.battle!; const player = battle.units.find((unit) => unit.side === 'player')!; const enemy = battle.units.find((unit) => unit.side === 'enemy')!
-    battle.units = [player, enemy]; player.x = 0; player.y = 0; player.stats.move = 3; player.stats.range = 1; enemy.x = 3; enemy.y = 0; battle.selectedUnitId = player.id
+    battle.units = [player, enemy]; player.x = 0; player.y = 0; player.stats.move = 3; player.stats.range = 1; enemy.x = 3; enemy.y = 0; enemy.stats.maxHp = 999; enemy.hp = 999; battle.selectedUnitId = player.id
     const result = moveThenAttackWithSelectedUnit(save, enemy.id)
     expect(result.save.battle!.units.find((unit) => unit.id === player.id)).toMatchObject({ x: 2, y: 0, moved: 1, attacked: 1 })
   })
 
   it('accepts a player-selected legal landing for move then attack', () => {
     const save = startTacticsBattle(createInitialTacticsSave()); const battle = save.battle!; const player = battle.units.find((unit) => unit.side === 'player')!; const enemy = battle.units.find((unit) => unit.side === 'enemy')!
-    battle.units = [player, enemy]; player.x = 0; player.y = 0; player.stats.move = 4; enemy.x = 3; enemy.y = 1; battle.selectedUnitId = player.id
+    battle.units = [player, enemy]; player.x = 0; player.y = 0; player.stats.move = 4; enemy.x = 3; enemy.y = 1; enemy.stats.maxHp = 999; enemy.hp = 999; battle.selectedUnitId = player.id
     const landing = getMoveThenAttackLandings(battle, player, enemy.id).find((cell) => cell.x === 3 && cell.y === 0)!
     expect(moveThenAttackWithSelectedUnit(save, enemy.id, landing).save.battle!.units.find((unit) => unit.id === player.id)).toMatchObject({ x: 3, y: 0 })
   })
@@ -116,8 +127,9 @@ describe('tactics engine', () => {
 
   it('offers four weighted skills on growth and persists the chosen one', () => {
     const save = createInitialTacticsSave(); save.heroes[0].training = 1
-    const grown = trainHeroStat(save, save.heroes[0].id, 'atk'); const draft = grown.heroes[0].skillDraft!
+    const grown = trainHeroStat(save, save.heroes[0].id, 'strength'); const draft = grown.heroes[0].skillDraft!
     expect(draft).toHaveLength(4)
-    expect(learnDraftSkill(grown, grown.heroes[0].id, draft[0]).heroes[0]).toMatchObject({ learnedSkillIds: ['strike', 'bleeding-edge', draft[0]], skillDraft: null })
+    expect(learnDraftSkill(grown, grown.heroes[0].id, draft[0]).heroes[0]).toMatchObject({ skillDraft: null })
+    expect(learnDraftSkill(grown, grown.heroes[0].id, draft[0]).heroes[0].learnedSkillIds).toContain(draft[0])
   })
 })

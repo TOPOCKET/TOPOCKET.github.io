@@ -1,5 +1,5 @@
 import { createCustomHero } from '../config/tactics-balance'
-import type { TacticsSave, TacticsStats } from '../model/tactics-model'
+import type { TacticsAttributeName, TacticsSave } from '../model/tactics-model'
 import { professionById, skillWeight, tacticsSkills } from '../config/tactics-professions'
 
 export const tacticsHeroCapacity = 12
@@ -16,16 +16,17 @@ export const claimVictoryRewards = (save: TacticsSave): TacticsSave => {
   }
 }
 
-export const trainHeroStat = (save: TacticsSave, heroId: string, stat: keyof Pick<TacticsStats, 'maxHp' | 'atk' | 'def'>): TacticsSave => ({
+export const trainHeroAttribute = (save: TacticsSave, heroId: string, attribute: TacticsAttributeName): TacticsSave => ({
   ...save,
   heroes: save.heroes.map((hero) => {
     if (hero.id !== heroId || hero.training <= 0) return hero
-    const gain = stat === 'maxHp' ? 3 : 1
     const profession = professionById(hero.professionId)
     const skillDraft = profession ? tacticsSkills.filter((skill) => skill.baseWeight > 0 && !hero.learnedSkillIds.includes(skill.id)).sort((a, b) => skillWeight(profession, b) - skillWeight(profession, a) || a.id.localeCompare(b.id)).slice(0, 4).map((skill) => skill.id) : []
-    return { ...hero, level: hero.level + 1, training: hero.training - 1, stats: { ...hero.stats, [stat]: hero.stats[stat] + gain }, skillDraft: skillDraft.length ? skillDraft : null }
+    const gain = profession ? Math.max(1, Math.ceil(profession.attributeGrowthWeights[attribute] / 2)) : 1
+    return { ...hero, level: hero.level + 1, training: hero.training - 1, attributes: { ...hero.attributes, [attribute]: hero.attributes[attribute] + gain }, skillDraft: skillDraft.length ? skillDraft : null }
   }),
 })
+export const trainHeroStat = trainHeroAttribute
 
 export const learnDraftSkill = (save: TacticsSave, heroId: string, skillId: string): TacticsSave => ({ ...save, heroes: save.heroes.map((hero) => hero.id === heroId && hero.skillDraft?.includes(skillId) ? { ...hero, learnedSkillIds: [...hero.learnedSkillIds, skillId], skillDraft: null } : hero) })
 export const equipHeroSkill = (save: TacticsSave, heroId: string, skillId: string): TacticsSave => ({ ...save, heroes: save.heroes.map((hero) => { if (hero.id !== heroId || !hero.learnedSkillIds.includes(skillId)) return hero; const skill = tacticsSkills.find((item) => item.id === skillId); if (skill?.slot === 'main') return { ...hero, equippedCoreSkillId: skillId }; if (skill?.slot === 'secondary') return { ...hero, equippedTacticalSkillIds: [...hero.equippedTacticalSkillIds.filter((id) => id !== skillId), skillId].slice(-3) }; return hero }) })

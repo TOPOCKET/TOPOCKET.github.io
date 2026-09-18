@@ -54,6 +54,7 @@ describe('tactics save schema', () => {
     const started = startTacticsBattle(createInitialTacticsSave())
     const parsed = tacticsSaveSchema.parse(started)
     const assassin = parsed.battle!.units.find((unit) => unit.heroId === 'hero-assassin')!
-    expect(assassin).toMatchObject({ professionId: 'assassin', learnedSkillIds: ['strike', 'bleeding-edge'], energy: { name: '体力', current: 5 } })
+    expect(assassin).toMatchObject({ professionId: 'assassin', equippedCoreSkillId: 'assassin-core-single', energy: { name: '体力', current: 5 } })
+    expect(assassin.learnedSkillIds).toEqual(expect.arrayContaining(['assassin-tactic-bleed', 'assassin-passive-guard']))
   })
 })
