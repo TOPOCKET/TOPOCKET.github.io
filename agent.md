@@ -10,9 +10,8 @@
 - Frontend: `Vue 3 + TypeScript + Vite`
 - Routing: `Vue Router` with `createWebHashHistory()`
 - Styling: `Tailwind CSS`
-- Validation: `zod`
+- Validation: lightweight runtime schemas in `src/shared/validation/schema.ts`
 - Deployment: `GitHub Pages + GitHub Actions`
-- WASM artifacts live in `public/wasm/`, with Rust source in `wasm/zhushen-core/`
 
 ## 3. Project Structure
 ```text
@@ -24,14 +23,12 @@ src/
   data/               # tools, prompts, links and related schemas
   types/              # shared type definitions
 docs/                 # canonical documentation entry
-public/wasm/          # published wasm assets
-wasm/zhushen-core/    # rust source
 ```
 
 ## 4. Non-Negotiable Engineering Rules
-- Keep route metadata configurable in `route-meta`-style files and include at least `title`, `icon`, `permission`, and `order`.
+- Keep route metadata configurable in `tool-registry.ts` and include at least `title`, `icon`, `permission`, and `order`.
 - Prefer data changes over page-structure changes when adding or updating tools, prompts, or links.
-- Validate runtime data for `tools`, `prompts`, and `links` with `zod`.
+- Validate runtime data for `tools`, `prompts`, and `links` with the shared runtime schema interface.
 - Keep tools loosely coupled. A tool must not depend directly on another tool's private implementation.
 - Split each tool into at least a view layer and a logic layer.
 - Prefer Composition API primitives first. Introduce `Pinia` only when state complexity justifies it.
@@ -56,14 +53,11 @@ wasm/zhushen-core/    # rust source
 - Preserve full interaction states: `hover`, `focus`, `active`, and `disabled`.
 - Maintain clear keyboard accessibility with `focus-visible`.
 
-## 7. Motion And Blob System
-- Motion should be continuous, restrained, and readable.
-- Keep animated background layers under content layers.
-- Reuse the existing blob abstractions:
-  - `BlobLayer.vue`
-  - `useBlobMotion.ts`
-- Do not hand-roll duplicate blob DOM or randomization logic in pages.
-- Prefer segmented loop trajectories and staggered timing instead of synchronous linear back-and-forth motion.
+## 7. Motion And Decoration
+- Motion should be sparse, restrained, and readable.
+- Prefer static decoration for tool surfaces.
+- Do not add page-local animated background systems unless the tool itself requires animation.
+- Keep decorative layers under content layers.
 
 ## 8. TypeScript Documentation Rules
 - Every `*.ts` file must have a module header JSDoc with `@file` and `@description`.
@@ -77,7 +71,7 @@ wasm/zhushen-core/    # rust source
 - After code changes, update documentation when behavior, architecture, storage, schema, UI semantics, styles, or external interfaces change.
 - Prefer updating existing docs in `README.md` or `docs/` first.
 - If existing documents do not cover the change, add new documentation under `docs/`.
-- Temporary optimization notes belong in `README.md` only for the current round, and completed work should move to `docs/archive/completed-work-archive.md`.
+- Temporary optimization notes belong in `README.md` only for the current round.
 
 ## 10. Delivery Checklist
 - Run `npm install` when dependencies are needed.
@@ -93,7 +87,6 @@ wasm/zhushen-core/    # rust source
 - Homepage tool navigation with search and categories
 - Prompt templates with search and copy
 - Grouped common links
-- `诸神皇冠培养模拟器` with Worker and WASM support
 
 ## 12. Source Priority
 - Use `README.md` for project facts and entry points.

@@ -24,7 +24,6 @@
   --glass-shadow: var(--glass-shadow-near), var(--glass-shadow-far);
   --shadow: 0 8px 18px rgb(15 23 42 / 8%);
   --glass-blur: 10px;
-  --blob-visibility: 1;
   --radius-panel: 16px;
   --radius-control: 12px;
 }
@@ -55,7 +54,6 @@
     --glass-shadow: var(--glass-shadow-near), var(--glass-shadow-far);
     --shadow: 0 10px 26px rgb(2 6 23 / 38%);
     --glass-blur: 16px;
-    --blob-visibility: 1.18;
   }
 }
 

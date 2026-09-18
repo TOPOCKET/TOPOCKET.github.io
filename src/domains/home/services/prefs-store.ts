@@ -1,6 +1,6 @@
-import { z } from 'zod'
 import type { ToolCategory } from '@/types/tool'
 import { loadRecord, saveRecord, storageEngine, storageKeys, type StoreContract } from '@/shared/persistence'
+import { createRuntimeSchema } from '@/shared/validation/schema'
 
 export type ThemeMode = 'system' | 'light' | 'dark'
 export type FilterCategory = 'all' | ToolCategory
@@ -12,11 +12,24 @@ export interface AppPrefsShape {
   recentTools: string[]
 }
 
-const prefsSchema = z.object({
-  themeMode: z.enum(['system', 'light', 'dark']),
-  homeKeyword: z.string(),
-  homeCategory: z.enum(['all', 'calculator', 'game', 'prompt', 'link']),
-  recentTools: z.array(z.string()),
+const prefsSchema = createRuntimeSchema<AppPrefsShape>((data) => {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('prefs must be an object')
+  const record = data as Record<string, unknown>
+  const themeMode = record.themeMode === 'light' || record.themeMode === 'dark' ? record.themeMode : 'system'
+  const homeKeyword = typeof record.homeKeyword === 'string' ? record.homeKeyword : ''
+  const homeCategory =
+    record.homeCategory === 'prompt' || record.homeCategory === 'link' || record.homeCategory === 'all'
+      ? record.homeCategory
+      : 'all'
+  const recentTools = Array.isArray(record.recentTools)
+    ? record.recentTools.filter((item): item is string => typeof item === 'string')
+    : []
+  return {
+    themeMode,
+    homeKeyword,
+    homeCategory,
+    recentTools,
+  }
 })
 
 const defaultPrefs: AppPrefsShape = {

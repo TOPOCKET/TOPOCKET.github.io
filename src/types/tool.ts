@@ -2,7 +2,7 @@
  * ToolCategory 类型定义。
  * @remarks 该类型用于约束调用边界，变更时请检查上下游类型推断与兼容性。
  */
-export type ToolCategory = 'calculator' | 'game' | 'prompt' | 'link'
+export type ToolCategory = 'prompt' | 'link'
 
 /**
  * ToolPermission 类型定义。

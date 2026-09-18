@@ -1,19 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { BlobLayer } from '@/shared/ui'
 import { prompts } from '@/data/prompts'
-import { createPanelMotionPreset } from '@/shared/ui/composables/useBlobMotion'
 import { useInputShortcut } from '@/shared/ui/composables/useInputShortcut'
 
 const keyword = ref('')
 const copiedId = ref<string | null>(null)
 
-const pageMotion = computed(() => createPanelMotionPreset('prompts:page'))
-
 const filteredPrompts = computed(() => {
   const text = keyword.value.trim().toLowerCase()
-  const list = !text
+  return !text
     ? prompts
     : prompts.filter((item) =>
       [item.title, item.purpose, item.placeholders.join(' '), item.content]
@@ -21,11 +17,6 @@ const filteredPrompts = computed(() => {
         .toLowerCase()
         .includes(text),
     )
-
-  return list.map((item) => ({
-    ...item,
-    motion: createPanelMotionPreset(`prompts:item:${item.id}`),
-  }))
 })
 
 const copyPrompt = async (id: string, content: string) => {
@@ -53,8 +44,7 @@ useInputShortcut({
       <RouterLink to="/" class="ui-btn ui-btn--ghost">返回首页</RouterLink>
     </header>
 
-    <section class="surface-card command-panel mb-6 p-4" :style="pageMotion.tint">
-      <BlobLayer :blobs="pageMotion.blobs" />
+    <section class="surface-card command-panel mb-6 p-4">
       <label class="block">
         <span class="mb-2 block text-sm text-[var(--text-muted)]">搜索模板</span>
         <input
@@ -76,9 +66,7 @@ useInputShortcut({
         v-for="item in filteredPrompts"
         :key="item.id"
         class="surface-card command-panel p-4"
-        :style="item.motion.tint"
       >
-        <BlobLayer :blobs="item.motion.blobs" />
         <div class="mb-2 flex items-start justify-between gap-3">
           <div>
             <h2 class="text-lg font-semibold text-[var(--text-primary)]">{{ item.title }}</h2>

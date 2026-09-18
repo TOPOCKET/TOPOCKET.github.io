@@ -1,15 +1,15 @@
-import type { z } from 'zod'
 import { storageEngine } from './engine'
 import type { StorageKey } from './keys'
 import type { StorageEnginePort } from './ports'
+import type { RuntimeSchema } from '@/shared/validation/schema'
 
 export interface RecordRepositoryPort {
-  loadRecord: <T>(key: StorageKey, schema: z.ZodType<T>, fallback: T) => T
+  loadRecord: <T>(key: StorageKey, schema: RuntimeSchema<T>, fallback: T) => T
   saveRecord: <T>(key: StorageKey, value: T) => void
 }
 
 export const createRecordRepository = (engine: StorageEnginePort): RecordRepositoryPort => ({
-  loadRecord: <T>(key: StorageKey, schema: z.ZodType<T>, fallback: T): T => {
+  loadRecord: <T>(key: StorageKey, schema: RuntimeSchema<T>, fallback: T): T => {
     const raw = engine.getRaw(key)
     if (!raw) return fallback
     try {

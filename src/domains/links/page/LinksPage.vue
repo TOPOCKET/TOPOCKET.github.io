@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
-import { BlobLayer } from '@/shared/ui'
 import type { QuickLinkItem } from '@/types/link'
-import { createPanelMotionPreset } from '@/shared/ui/composables/useBlobMotion'
 import { linksStore } from '@/domains/links/services/links-store'
 
 const categoryTitleMap: Record<string, string> = {
@@ -30,7 +28,6 @@ const groupedLinks = computed(() => {
     key,
     title: categoryTitleMap[key] ?? key,
     items,
-    motion: createPanelMotionPreset(`links-group:${key}`),
   }))
 })
 </script>
@@ -55,9 +52,7 @@ const groupedLinks = computed(() => {
         v-for="group in groupedLinks"
         :key="group.key"
         class="surface-card p-4"
-        :style="group.motion.tint"
       >
-        <BlobLayer :blobs="group.motion.blobs" />
         <h2 class="mb-3 text-lg font-semibold text-[var(--text-primary)]">{{ group.title }}</h2>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <a

@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
-import { computed } from 'vue'
 import type { ToolItem } from '@/types/tool'
-import BlobLayer from './BlobLayer.vue'
-import { createCardMotionPreset } from '@/shared/ui/composables/useBlobMotion'
 
 const props = defineProps<{
   tool: ToolItem
@@ -11,17 +8,12 @@ const props = defineProps<{
 const emit = defineEmits<{
   'open-tool': [toolId: string]
 }>()
-
-const motionPreset = computed(() => createCardMotionPreset(`${props.tool.id}:${props.tool.name}`))
 </script>
 
 <template>
   <article
     class="surface-card flex h-full flex-col p-4"
-    :style="motionPreset.tint"
   >
-    <BlobLayer :blobs="motionPreset.blobs" />
-
     <div class="mb-3 flex items-center justify-between gap-2">
       <h3 class="text-base font-semibold text-[var(--text-primary)]">{{ tool.name }}</h3>
       <span

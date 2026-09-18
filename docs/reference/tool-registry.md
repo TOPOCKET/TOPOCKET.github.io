@@ -6,9 +6,8 @@
 
 ## 当前派生关系
 
-- `src/app/tool-registry.ts`：维护工具元信息、路由路径、权限、排序、图标、懒加载组件和分类选项。
-- `src/app/route-meta.ts`：从 `toolRegistry` 派生工具路由，并保留首页路由。
-- `src/data/tools.ts`：从 `toolRegistry` 派生首页工具卡片数据。
+- `src/app/tool-registry.ts`：维护工具元信息、路由路径、权限、排序、图标、懒加载组件、分类选项、首页工具卡片数据和路由配置。
+- `src/app/router.ts`：消费 `tool-registry.ts` 导出的 `appRoutes`。
 - `src/domains/home/page/HomePage.vue`：消费 `tools` 和 `toolCategories`，不再硬编码分类。
 
 ## 新工具接入清单
@@ -22,5 +21,5 @@
 ## 约束
 
 - 工具卡片展示字段、路由元信息和权限字段不得分散复制。
-- 工具页面必须通过懒加载进入注册表，避免首页直接加载重工具页面。
-- `tools` 数据仍需通过 zod 校验，保持运行时配置失败可见。
+- 工具页面必须通过懒加载进入注册表，避免首页直接加载非首屏页面。
+- `tools` 数据仍需通过运行时 schema 校验，保持配置失败可见。

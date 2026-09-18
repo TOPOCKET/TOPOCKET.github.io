@@ -7,7 +7,7 @@
 
 - 持久化必须统一通过 `src/shared/persistence/*` 与各域 `services/*` store。
 - 禁止在页面/组件直接调用 `localStorage.setItem/getItem`。
-- 默认通过 zod 对读写记录做 schema 校验。
+- 默认通过 `src/shared/validation/schema.ts` 的轻量 schema 接口对读写记录做校验。
 
 ## 命名空间
 
@@ -37,17 +37,10 @@
 - Schema：`quickLinkListSchema`
 - 默认值：`src/data/links.ts` 的 `defaultQuickLinks`
 
-### 3) 诸神自定义数据（Zhushen Custom Data）
-
-- Key：`sopronwitta:tool:zhushen:custom:v1`
-- Store：`src/domains/zhushen/services/zhushen-custom-store.ts`
-- Schema：`zhushenCustomSchema`
-- 默认值：`jobs/equips/skills/traits` 空数组
-
 ## 新工具接入清单
 
 1. 在 `src/shared/persistence/keys.ts` 定义 key。
-2. 定义 zod schema。
+2. 定义运行时 schema。
 3. 实现 store 的 `load/save/reset`。
 4. 若有旧版本，明确迁移路径。
 5. 高频状态加节流策略。

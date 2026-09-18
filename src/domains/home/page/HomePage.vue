@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { BlobLayer, CategoryFilter, SearchBox, ToolCard } from '@/shared/ui'
-import { tools } from '@/data/tools'
-import { toolCategories } from '@/app/tool-registry'
+import { CategoryFilter, SearchBox, ToolCard } from '@/shared/ui'
+import { toolCategories, tools } from '@/app/tool-registry'
 import type { ToolCategory, ToolItem } from '@/types/tool'
-import { createPanelMotionPreset } from '@/shared/ui/composables/useBlobMotion'
 import { useAppPrefs } from '@/domains/home/composables/useAppPrefs'
 import { useInputShortcut } from '@/shared/ui/composables/useInputShortcut'
 
@@ -31,8 +29,6 @@ const filteredTools = computed<ToolItem[]>(() => {
     return byCategory && byText
   })
 })
-
-const commandPanelMotion = computed(() => createPanelMotionPreset('command-panel:home'))
 
 const onOpenTool = (toolId: string) => {
   pushRecentTool(toolId)
@@ -67,8 +63,7 @@ useInputShortcut({
       </div>
     </header>
 
-    <section class="surface-card command-panel mb-6 grid gap-4 p-4 sm:grid-cols-2" :style="commandPanelMotion.tint">
-      <BlobLayer :blobs="commandPanelMotion.blobs" />
+    <section class="surface-card command-panel mb-6 grid gap-4 p-4 sm:grid-cols-2">
       <div>
         <SearchBox v-model="keyword" />
       </div>

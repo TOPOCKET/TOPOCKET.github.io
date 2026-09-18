@@ -12,7 +12,7 @@
 - Pages 要求：
   - `vite.config.ts` 配置 `base: '/<repo-name>/'`
   - 自动部署 `dist/`，不手动提交构建产物
-- 路由元数据必须配置化（`route-meta.ts`）：至少包含 `title/icon/permission/order`
+- 路由元数据必须配置化（`tool-registry.ts`）：至少包含 `title/icon/permission/order`
 
 ## 3. 目录与命名规范
 ```text
@@ -102,25 +102,15 @@ public/
 - 键盘可访问性必须清晰（`focus-visible`）
 - 选中态（active/selected）使用同色系提亮：边框亮度、内高光、不透明度提升；不引入彩色品牌边框。
 
-玻璃动效层规则：
-- 背景动效层：`z-index: 0`
+玻璃装饰层规则：
+- 背景装饰层：`z-index: 0`
 - 内容层：`z-index: 1`
-- 使用 `:not(.raycast-blob-layer)` 提升内容层，避免覆盖背景层定位
+- 统一由 `surface-card` 提升内容层，避免页面私有层级规则
 
-## 10. 光斑系统（强制抽象）
-- 统一复用：
-  - `BlobLayer.vue`：渲染层
-  - `useBlobMotion.ts`：参数生成（`createTintVars`、`createBlobVars`、`createCardMotionPreset`、`createPanelMotionPreset`）
-- 禁止在页面里重复手写光斑 DOM 与随机逻辑
-
-参数策略：
-- 卡片动效参数由特征值（如 `id + name`）哈希生成
-- 分组容器（如 command-panel、links-group）使用独立 seed
-
-轨迹策略：
-- 使用分段闭环轨迹（`0% -> 34% -> 68% -> 100%`）
-- 禁止单一直线往返
-- 时长建议 `11s~21s`，并使用负延迟错峰，避免全体同步
+## 10. 静态装饰系统
+- 工具页面默认使用静态装饰，不引入持续运行的背景动画。
+- 卡片材质统一由 `surface-card` 和全局 token 表达。
+- 禁止在页面里重复手写卡片滤镜、随机背景和装饰层级。
 
 容器适配：
 - `fitContainer=true`：轨迹限制在容器内（任意尺寸容器）

@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { z } from 'zod'
 import { loadRecord, saveRecord } from './record'
 import { storageKeys, STORAGE_PREFIX } from './keys'
+import { createRuntimeSchema } from '@/shared/validation/schema'
 
 class LocalStorageMock {
   private readonly store = new Map<string, string>()
@@ -23,8 +23,11 @@ class LocalStorageMock {
   }
 }
 
-const schema = z.object({
-  count: z.number().int().nonnegative(),
+const schema = createRuntimeSchema<{ count: number }>((data) => {
+  if (!data || typeof data !== 'object') throw new Error('invalid record')
+  const count = (data as { count?: unknown }).count
+  if (typeof count !== 'number' || !Number.isInteger(count) || count < 0) throw new Error('invalid count')
+  return { count }
 })
 
 describe('shared/persistence/record', () => {

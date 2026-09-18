@@ -8,19 +8,11 @@
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "benchmark:zhushen:engines:replay": "vitest run src/domains/zhushen/engine/simulation-engine-replay-calibration.test.ts",
-    "benchmark:zhushen:engines": "npm run benchmark:zhushen:engines:replay",
-    "benchmark:zhushen:replay:full": "npm run benchmark:zhushen:engines:replay && npm run diagnose:zhushen:replay",
-    "diagnose:zhushen:replay": "node scripts/benchmarks/diagnose-zhushen-replay.mjs",
-    "profile:zhushen:replay": "node scripts/benchmarks/profile-zhushen-replay.mjs",
-    "arch:check": "node scripts/quality/arch-boundary-check.mjs",
-    "perf:check": "node scripts/quality/perf-check.mjs",
-    "perf:baseline": "node scripts/quality/perf-baseline-update.mjs"
+    "arch:check": "node scripts/quality/arch-boundary-check.mjs"
   },
   "dependencies": {
     "vue": "^3.5.32",
-    "vue-router": "^4.6.3",
-    "zod": "^4.4.3"
+    "vue-router": "^4.6.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",

@@ -22,14 +22,13 @@ npm run build
 - Vite
 - Vue Router（`createWebHashHistory`）
 - Tailwind CSS
-- zod
+- 轻量运行时数据校验
 
 ## 当前模块
 
 - 首页工具导航（搜索 / 分类）
 - 提示词模板页（搜索 / 复制）
 - 常用链接页（分组展示）
-- 诸神皇冠培养模拟器（含 Worker + WASM）
 
 ## 文档体系（统一入口）
 
@@ -40,7 +39,7 @@ npm run build
 
 ```text
 src/
-  app/                # 工具注册表、路由与 route-meta
+  app/                # 工具注册表与路由派生
   domains/            # 业务域（页面与域内逻辑）
   shared/             # 跨域共享门面
   config/             # 运行时配置
@@ -48,8 +47,6 @@ src/
   shared/style/       # tokens + components
   types/              # 类型定义
 docs/                 # 项目规范与契约文档
-public/wasm/          # wasm 发布产物
-wasm/zhushen-core/    # wasm Rust 源码
 ```
 
 ## 部署说明（GitHub Pages）
@@ -58,7 +55,7 @@ wasm/zhushen-core/    # wasm Rust 源码
 - Pages Source：`GitHub Actions`
 - 工作流：`.github/workflows/deploy.yml`
 
-## 临时优化路线（暂存）
+## 维护说明
 
-- 本区仅用于记录“当前轮次”的临时优化计划与待办。
-- 阶段完成后请将内容迁移到：`docs/archive/completed-work-archive.md`。
+- 新增工具优先修改 `src/app/tool-registry.ts`。
+- 路由、首页工具卡片与分类筛选由注册表派生。

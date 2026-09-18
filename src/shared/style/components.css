@@ -61,21 +61,13 @@
   isolation: isolate;
   overflow: hidden;
   clip-path: inset(0 round var(--radius-panel));
-  --blob-anchor-x: -50%;
-  --blob-anchor-y: -50%;
 }
 
-.surface-card,
-.raycast-card {
+.surface-card {
   position: relative;
   overflow: hidden;
   isolation: isolate;
   clip-path: inset(0 round var(--radius-panel));
-  --card-hue: 230;
-  --card-hue-alt: 252;
-  --card-tint-angle: 160deg;
-  --blob-anchor-x: -50%;
-  --blob-anchor-y: -50%;
   border-radius: var(--radius-panel);
   border: 1px solid var(--border);
   background:
@@ -90,100 +82,24 @@
   transition: border-color 180ms ease;
 }
 
-.surface-card:hover,
-.raycast-card:hover {
+.surface-card:hover {
   border-color: var(--border-strong);
 }
 
-.surface-card::before,
-.raycast-card::before {
+.surface-card::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 0;
   background:
-    radial-gradient(120% 90% at 6% 0%, hsl(var(--card-hue) 90% 60% / 0.14), transparent 64%),
-    linear-gradient(var(--card-tint-angle), hsl(var(--card-hue-alt) 84% 52% / 0.1), transparent 52%);
+    radial-gradient(120% 90% at 6% 0%, rgb(96 165 250 / 10%), transparent 64%),
+    linear-gradient(160deg, rgb(99 102 241 / 8%), transparent 52%);
 }
 
-.raycast-blob-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  overflow: hidden;
-  container-type: size;
-}
-
-.raycast-blob {
-  display: block;
-  position: absolute;
-  width: var(--blob-size);
-  aspect-ratio: 1;
-  border-radius: 999px;
-  left: 0;
-  top: 0;
-  opacity: calc(var(--blob-opacity) * var(--blob-visibility));
-  background:
-    radial-gradient(
-      circle at 35% 35%,
-      hsl(calc(var(--card-hue) + var(--blob-hue-shift)) 98% 72% / 1),
-      hsl(calc(var(--card-hue-alt) + var(--blob-hue-shift)) 92% 58% / 0.5) 48%,
-      transparent 72%
-    );
-  filter: blur(20px) saturate(1.38) drop-shadow(0 0 10px hsl(var(--card-hue) 95% 64% / 0.28));
-  transform:
-    translate3d(calc(var(--blob-sx) * 1cqw), calc(var(--blob-sy) * 1cqh), 0)
-    translate(var(--blob-anchor-x, 0), var(--blob-anchor-y, 0))
-    scale(1);
-  animation: blob-orbit var(--blob-duration) linear infinite;
-  animation-delay: var(--blob-delay);
-  will-change: transform, opacity;
-}
-
-@keyframes blob-orbit {
-  0% {
-    transform:
-      translate3d(calc(var(--blob-sx) * 1cqw), calc(var(--blob-sy) * 1cqh), 0)
-      translate(var(--blob-anchor-x, 0), var(--blob-anchor-y, 0))
-      scale(1);
-    opacity: calc(var(--blob-opacity) * 0.88);
-  }
-  34% {
-    transform:
-      translate3d(calc(var(--blob-mx) * 1cqw), calc(var(--blob-my) * 1cqh), 0)
-      translate(var(--blob-anchor-x, 0), var(--blob-anchor-y, 0))
-      scale(1.08);
-    opacity: var(--blob-opacity);
-  }
-  68% {
-    transform:
-      translate3d(calc(var(--blob-ex) * 1cqw), calc(var(--blob-ey) * 1cqh), 0)
-      translate(var(--blob-anchor-x, 0), var(--blob-anchor-y, 0))
-      scale(0.96);
-    opacity: calc(var(--blob-opacity) * 0.94);
-  }
-  100% {
-    transform:
-      translate3d(calc(var(--blob-sx) * 1cqw), calc(var(--blob-sy) * 1cqh), 0)
-      translate(var(--blob-anchor-x, 0), var(--blob-anchor-y, 0))
-      scale(1);
-    opacity: calc(var(--blob-opacity) * 0.88);
-  }
-}
-
-.surface-card > :not(.raycast-blob-layer),
-.raycast-card > :not(.raycast-blob-layer) {
+.surface-card > * {
   position: relative;
   z-index: 1;
-}
-
-.command-panel .raycast-blob,
-.surface-card .raycast-blob,
-.raycast-card .raycast-blob {
-  filter: blur(26px) saturate(1.44) drop-shadow(0 0 14px hsl(var(--card-hue-alt) 92% 60% / 0.34));
-  opacity: calc(var(--blob-opacity) * 1.05);
 }
 
 .link-tile {

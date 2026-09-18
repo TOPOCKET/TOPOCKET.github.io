@@ -3,7 +3,7 @@
  * @description 应用路由与页面元信息配置。
  */
 import { createRouter, createWebHashHistory } from 'vue-router'
-import { appRoutes } from './route-meta'
+import { appRoutes } from './tool-registry'
 
 const appName = 'Sopronwitta'
 
