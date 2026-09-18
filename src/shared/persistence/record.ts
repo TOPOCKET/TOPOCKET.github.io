@@ -4,20 +4,21 @@ import type { StorageEnginePort } from './ports'
 import type { RuntimeSchema } from '@/shared/validation/schema'
 
 export interface RecordRepositoryPort {
-  loadRecord: <T>(key: StorageKey, schema: RuntimeSchema<T>, fallback: T) => T
+  loadRecord: <T>(key: StorageKey, schema: RuntimeSchema<T>, fallback: T | (() => T)) => T
   saveRecord: <T>(key: StorageKey, value: T) => void
 }
 
 export const createRecordRepository = (engine: StorageEnginePort): RecordRepositoryPort => ({
-  loadRecord: <T>(key: StorageKey, schema: RuntimeSchema<T>, fallback: T): T => {
+  loadRecord: <T>(key: StorageKey, schema: RuntimeSchema<T>, fallback: T | (() => T)): T => {
+    const createFallback = () => typeof fallback === 'function' ? (fallback as () => T)() : fallback
     const raw = engine.getRaw(key)
-    if (!raw) return fallback
+    if (!raw) return createFallback()
     try {
       const parsed = JSON.parse(raw)
       const result = schema.safeParse(parsed)
-      return result.success ? result.data : fallback
+      return result.success ? result.data : createFallback()
     } catch {
-      return fallback
+      return createFallback()
     }
   },
   saveRecord: <T>(key: StorageKey, value: T) => {

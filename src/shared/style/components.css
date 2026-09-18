@@ -41,6 +41,20 @@
   border-color: var(--accent);
 }
 
+.ui-select {
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--panel-strong);
+  padding: 6px 8px;
+  color: var(--text-primary);
+}
+
+.ui-select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  border-color: var(--accent);
+}
+
 .glass-panel:hover,
 .glass-control:hover {
   border-color: var(--border-strong);

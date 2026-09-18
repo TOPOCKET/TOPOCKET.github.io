@@ -29,7 +29,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #05070d;
     --bg-elevated: rgb(15 23 42 / 76%);
     --panel: rgb(17 24 39 / 72%);
@@ -55,6 +55,35 @@
     --shadow: 0 10px 26px rgb(2 6 23 / 38%);
     --glass-blur: 16px;
   }
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #05070d;
+  --bg-elevated: rgb(15 23 42 / 76%);
+  --panel: rgb(17 24 39 / 72%);
+  --panel-strong: rgb(17 24 39 / 86%);
+  --card-base: rgb(17 24 39 / 62%);
+  --text-primary: #e2e8f0;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --border: rgb(148 163 184 / 24%);
+  --border-strong: rgb(148 163 184 / 36%);
+  --accent: rgb(226 232 240 / 56%);
+  --accent-soft: rgb(226 232 240 / 14%);
+  --ok-text: #6ee7b7;
+  --ok-border: rgb(110 231 183 / 42%);
+  --warn-text: #fcd34d;
+  --warn-border: rgb(252 211 77 / 42%);
+  --glass-highlight: rgb(255 255 255 / 10%);
+  --glass-shadow-near: 0 2px 8px rgb(2 6 23 / 42%);
+  --glass-shadow-far: 0 18px 38px rgb(2 6 23 / 55%);
+  --shadow: 0 10px 26px rgb(2 6 23 / 38%);
+  --glass-blur: 16px;
 }
 
 body {

@@ -5,12 +5,11 @@
 import type { QuickLinkItem } from '@/types/link'
 import type { PromptTemplateItem } from '@/types/prompt'
 import type { ToolCategory, ToolItem, ToolPermission, ToolStatus } from '@/types/tool'
+import { toolCategoryKeys, type ToolCategoryOption } from '@/data/tool-categories'
 import { createRuntimeSchema, type RuntimeSchema } from '@/shared/validation/schema'
 
-type ToolCategoryOption = { key: 'all' | ToolCategory; label: string }
 type ToolRegistryMeta = ToolItem & { routeName: string; title: string }
 
-const toolCategories = ['prompt', 'link'] as const
 const toolStatuses = ['ready', 'coming-soon'] as const
 const toolPermissions = ['public', 'private'] as const
 
@@ -75,7 +74,7 @@ export const toolItemSchema = createRuntimeSchema<ToolItem>((data) => {
     id: nonEmptyString(record.id, 'tool.id'),
     name: nonEmptyString(record.name, 'tool.name'),
     description: nonEmptyString(record.description, 'tool.description'),
-    category: enumValue(record.category, toolCategories, 'tool.category') as ToolCategory,
+    category: enumValue(record.category, toolCategoryKeys, 'tool.category') as ToolCategory,
     tags: stringList(record.tags, 'tool.tags'),
     path: nonEmptyString(record.path, 'tool.path'),
     status: enumValue(record.status, toolStatuses, 'tool.status') as ToolStatus,
@@ -101,7 +100,7 @@ export const toolCategoryOptionListSchema = arrayOf(
     const key =
       record.key === 'all'
         ? 'all'
-        : (enumValue(record.key, toolCategories, 'toolCategory.key') as ToolCategory)
+        : (enumValue(record.key, toolCategoryKeys, 'toolCategory.key') as ToolCategory)
     return {
       key,
       label: nonEmptyString(record.label, 'toolCategory.label'),

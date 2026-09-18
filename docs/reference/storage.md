@@ -37,6 +37,13 @@
 - Schema：`quickLinkListSchema`
 - 默认值：`src/data/links.ts` 的 `defaultQuickLinks`
 
+### 3) 无限战棋存档（Tactics Save）
+
+- Key：`sopronwitta:tool:tactics:v1`
+- Store：`src/domains/tactics/services/tactics-store.ts`
+- Schema：`tacticsSaveSchema`
+- 默认值：双角色初始队伍、第一层、无进行中战斗
+
 ## 新工具接入清单
 
 1. 在 `src/shared/persistence/keys.ts` 定义 key。

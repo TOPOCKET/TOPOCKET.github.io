@@ -4,7 +4,8 @@
  */
 import type { Component } from 'vue'
 import type { RouteRecordRaw } from 'vue-router'
-import type { ToolCategory, ToolItem } from '@/types/tool'
+import type { ToolItem } from '@/types/tool'
+import { toolCategoryOptions, type ToolCategoryOption } from '@/data/tool-categories'
 import { parseOrThrow, toolCategoryOptionListSchema, toolListSchema, toolRegistryMetaListSchema } from '@/data/schemas'
 
 type ToolPageLoader = () => Promise<{ default: Component }>
@@ -13,10 +14,7 @@ type ToolPageLoader = () => Promise<{ default: Component }>
  * ToolCategoryOption 接口定义。
  * @remarks 该接口用于首页筛选与偏好状态，变更时需同步持久化兼容策略。
  */
-export interface ToolCategoryOption {
-  key: 'all' | ToolCategory
-  label: string
-}
+export type { ToolCategoryOption }
 
 /**
  * ToolRegistryEntry 接口定义。
@@ -39,13 +37,22 @@ export interface AppRouteMeta {
   order: number
 }
 
-const rawToolCategories: ToolCategoryOption[] = [
-  { key: 'all', label: '全部' },
-  { key: 'prompt', label: '提示词' },
-  { key: 'link', label: '常用链接' },
-]
-
 const rawToolRegistry: ToolRegistryEntry[] = [
+  {
+    id: 'tactics-rogue',
+    name: '无限战棋',
+    title: '无限战棋',
+    description: '本地存档的轻量战棋，支持无限推进、角色自定义和局外成长。',
+    category: 'game',
+    tags: ['战棋', '本地存档', '成长'],
+    path: '/tools/tactics-rogue',
+    routeName: 'tactics-rogue',
+    icon: 'swords',
+    permission: 'public',
+    order: 2,
+    status: 'ready',
+    component: () => import('@domains/tactics').then((module) => ({ default: module.TacticsGamePage })),
+  },
   {
     id: 'prompt-templates',
     name: '代码模板库',
@@ -57,7 +64,7 @@ const rawToolRegistry: ToolRegistryEntry[] = [
     routeName: 'prompts',
     icon: 'sparkles',
     permission: 'public',
-    order: 2,
+    order: 3,
     status: 'ready',
     component: () => import('@domains/prompts').then((module) => ({ default: module.PromptsPage })),
   },
@@ -72,36 +79,56 @@ const rawToolRegistry: ToolRegistryEntry[] = [
     routeName: 'links',
     icon: 'link',
     permission: 'public',
-    order: 3,
+    order: 4,
     status: 'ready',
     component: () => import('@domains/links').then((module) => ({ default: module.LinksPage })),
   },
 ]
 
-const registryMeta = parseOrThrow(
-  'toolRegistry',
-  toolRegistryMetaListSchema,
-  rawToolRegistry.map(({ component: _component, ...entry }) => entry),
-)
+export const assertToolRegistry = (registry: readonly ToolRegistryEntry[]): void => {
+  const unique = (label: string, values: readonly string[]) => {
+    if (new Set(values).size !== values.length) throw new Error(`toolRegistry contains duplicate ${label}`)
+  }
+
+  unique('id', registry.map((tool) => tool.id))
+  unique('path', registry.map((tool) => tool.path))
+  unique('routeName', registry.map((tool) => tool.routeName))
+  unique('order', registry.map((tool) => String(tool.order)))
+
+  for (const tool of registry) {
+    if (!tool.path.startsWith('/')) throw new Error(`toolRegistry path must start with /: ${tool.path}`)
+    if (tool.status !== 'ready') throw new Error(`toolRegistry route must be ready: ${tool.id}`)
+  }
+
+  const categoryKeys = new Set(toolCategoryOptions.map((category) => category.key))
+  for (const tool of registry) {
+    if (!categoryKeys.has(tool.category)) throw new Error(`toolRegistry category is not selectable: ${tool.category}`)
+  }
+}
 
 /**
  * toolCategories 导出定义。
  * @returns 工具分类筛选项。
  * @remarks 该常量为首页筛选和偏好状态的统一分类配置。
  */
-export const toolCategories = parseOrThrow('toolCategories', toolCategoryOptionListSchema, rawToolCategories)
+export const toolCategories = parseOrThrow('toolCategories', toolCategoryOptionListSchema, toolCategoryOptions)
 
 /**
  * toolRegistry 导出定义。
  * @returns 已校验元信息且包含页面加载器的工具注册表。
  * @remarks 新增工具优先修改这里，避免路由、首页卡片和数据文件分散维护。
  */
-export const toolRegistry: ToolRegistryEntry[] = registryMeta
-  .map((entry, index) => ({
-    ...entry,
-    component: rawToolRegistry[index].component,
-  }))
-  .sort((left, right) => left.order - right.order)
+const validatedToolRegistry = rawToolRegistry.map((entry) => {
+  const { component, ...meta } = entry
+  return {
+    ...parseOrThrow(`toolRegistry:${entry.id}`, toolRegistryMetaListSchema, [meta])[0],
+    component,
+  }
+})
+
+assertToolRegistry(validatedToolRegistry)
+
+export const toolRegistry: ToolRegistryEntry[] = [...validatedToolRegistry].sort((left, right) => left.order - right.order)
 
 /**
  * tools 导出定义。

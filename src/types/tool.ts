@@ -2,7 +2,9 @@
  * ToolCategory 类型定义。
  * @remarks 该类型用于约束调用边界，变更时请检查上下游类型推断与兼容性。
  */
-export type ToolCategory = 'prompt' | 'link'
+import type { ToolCategory as CatalogToolCategory } from '@/data/tool-categories'
+
+export type ToolCategory = CatalogToolCategory
 
 /**
  * ToolPermission 类型定义。
