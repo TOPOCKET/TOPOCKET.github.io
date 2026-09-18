@@ -2,38 +2,10 @@
  * @file tools 文件说明。
  * @description 静态业务数据与数据结构校验定义。
  */
-import type { ToolItem } from '../types/tool'
+import { toolRegistry } from '@/app/tool-registry'
 import { parseOrThrow, toolListSchema } from './schemas'
 
-const rawTools: ToolItem[] = [
-  {
-    id: 'game-calc',
-    name: '诸神皇冠培养模拟器',
-    description: '按转职路径逐级模拟成长并计算最终六维面板。',
-    category: 'calculator',
-    tags: ['RPG', '成长', '转职路径'],
-    path: '/tools/game-calc',
-    status: 'ready',
-  },
-  {
-    id: 'prompt-templates',
-    name: '代码模板库',
-    description: '整理常用模板，支持复制与变量占位。',
-    category: 'prompt',
-    tags: ['写作', '代码', '翻译'],
-    path: '/prompts',
-    status: 'ready',
-  },
-  {
-    id: 'quick-links',
-    name: '常用站点导航',
-    description: '分组管理高频网址，一键打开。',
-    category: 'link',
-    tags: ['效率', '书签'],
-    path: '/links',
-    status: 'ready',
-  },
-]
+const rawTools = toolRegistry.map(({ component: _component, routeName: _routeName, title: _title, ...tool }) => tool)
 
 /**
  * tools 导出定义。

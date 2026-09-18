@@ -17,6 +17,12 @@ export const toolCategorySchema = z.enum(['calculator', 'game', 'prompt', 'link'
 export const toolStatusSchema = z.enum(['ready', 'coming-soon'])
 
 /**
+ * toolPermissionSchema 导出定义。
+ * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
+ */
+export const toolPermissionSchema = z.enum(['public', 'private'])
+
+/**
  * toolItemSchema 导出定义。
  * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
  */
@@ -28,6 +34,9 @@ export const toolItemSchema = z.object({
   tags: z.array(z.string().min(1)),
   path: z.string().min(1),
   status: toolStatusSchema,
+  icon: z.string().min(1),
+  permission: toolPermissionSchema,
+  order: z.number().int().nonnegative(),
 })
 
 /**
@@ -35,6 +44,36 @@ export const toolItemSchema = z.object({
  * @remarks 该常量为共享配置或数据源，修改后会影响所有消费方。
  */
 export const toolListSchema = z.array(toolItemSchema)
+
+/**
+ * toolCategoryOptionSchema 导出定义。
+ * @remarks 该常量用于统一首页筛选、工具注册和偏好状态的分类来源。
+ */
+export const toolCategoryOptionSchema = z.object({
+  key: z.union([z.literal('all'), toolCategorySchema]),
+  label: z.string().min(1),
+})
+
+/**
+ * toolCategoryOptionListSchema 导出定义。
+ * @remarks 该常量为工具分类列表的运行时校验结构。
+ */
+export const toolCategoryOptionListSchema = z.array(toolCategoryOptionSchema)
+
+/**
+ * toolRegistryMetaSchema 导出定义。
+ * @remarks 该常量用于校验工具注册表中可序列化的元信息。
+ */
+export const toolRegistryMetaSchema = toolItemSchema.extend({
+  routeName: z.string().min(1),
+  title: z.string().min(1),
+})
+
+/**
+ * toolRegistryMetaListSchema 导出定义。
+ * @remarks 该常量用于工具注册表元信息的运行时校验。
+ */
+export const toolRegistryMetaListSchema = z.array(toolRegistryMetaSchema)
 
 /**
  * quickLinkItemSchema 导出定义。

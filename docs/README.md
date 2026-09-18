@@ -28,6 +28,8 @@
   诸神模拟器需求基线
 - [reference/storage.md](./reference/storage.md)  
   存储规范
+- [reference/tool-registry.md](./reference/tool-registry.md)
+  工具注册表规范
 - [reference/ui-semantics.md](./reference/ui-semantics.md)  
   UI 语义规范
 - [reference/wasm.md](./reference/wasm.md)  

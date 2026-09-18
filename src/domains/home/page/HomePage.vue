@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { BlobLayer, CategoryFilter, SearchBox, ToolCard } from '@/shared/ui'
 import { tools } from '@/data/tools'
+import { toolCategories } from '@/app/tool-registry'
 import type { ToolCategory, ToolItem } from '@/types/tool'
 import { createPanelMotionPreset } from '@/shared/ui/composables/useBlobMotion'
 import { useAppPrefs } from '@/domains/home/composables/useAppPrefs'
@@ -10,14 +11,6 @@ import { useInputShortcut } from '@/shared/ui/composables/useInputShortcut'
 const { homeKeyword, homeCategory, pushRecentTool } = useAppPrefs()
 const keyword = ref(homeKeyword.value)
 const activeCategory = ref<'all' | ToolCategory>(homeCategory.value)
-
-const categories: { key: 'all' | ToolCategory; label: string }[] = [
-  { key: 'all', label: '全部' },
-  { key: 'calculator', label: '计算器' },
-  { key: 'game', label: '小游戏' },
-  { key: 'prompt', label: '提示词' },
-  { key: 'link', label: '常用链接' },
-]
 
 const filteredTools = computed<ToolItem[]>(() => {
   const text = keyword.value.trim().toLowerCase()
@@ -81,7 +74,7 @@ useInputShortcut({
       </div>
       <div>
         <p class="mb-2 text-sm text-[var(--text-muted)]">分类筛选</p>
-        <CategoryFilter v-model="activeCategory" :categories="categories" />
+        <CategoryFilter v-model="activeCategory" :categories="toolCategories" />
       </div>
     </section>
 

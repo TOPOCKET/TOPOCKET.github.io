@@ -40,7 +40,7 @@ npm run build
 
 ```text
 src/
-  app/                # 路由与 route-meta
+  app/                # 工具注册表、路由与 route-meta
   domains/            # 业务域（页面与域内逻辑）
   shared/             # 跨域共享门面
   config/             # 运行时配置

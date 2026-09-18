@@ -3,10 +3,7 @@
  * @description 应用路由与页面元信息配置。
  */
 import type { RouteRecordRaw } from 'vue-router'
-import { HomePage } from '@domains/home'
-import { LinksPage } from '@domains/links'
-import { PromptsPage } from '@domains/prompts'
-import { ZhushenSimulatorPage } from '@domains/zhushen'
+import { toolRegistry } from './tool-registry'
 
 /**
  * AppRouteMeta 接口定义。
@@ -27,7 +24,7 @@ export const appRoutes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'home',
-    component: HomePage,
+    component: () => import('@domains/home').then((module) => ({ default: module.HomePage })),
     meta: {
       title: '首页',
       icon: 'layout-grid',
@@ -35,37 +32,15 @@ export const appRoutes: RouteRecordRaw[] = [
       order: 1,
     },
   },
-  {
-    path: '/prompts',
-    name: 'prompts',
-    component: PromptsPage,
+  ...toolRegistry.map((tool) => ({
+    path: tool.path,
+    name: tool.routeName,
+    component: tool.component,
     meta: {
-      title: '提示词模板',
-      icon: 'sparkles',
-      permission: 'public',
-      order: 2,
+      title: tool.title,
+      icon: tool.icon,
+      permission: tool.permission,
+      order: tool.order,
     },
-  },
-  {
-    path: '/links',
-    name: 'links',
-    component: LinksPage,
-    meta: {
-      title: '常用链接',
-      icon: 'link',
-      permission: 'public',
-      order: 3,
-    },
-  },
-  {
-    path: '/tools/game-calc',
-    name: 'game-calc',
-    component: ZhushenSimulatorPage,
-    meta: {
-      title: '诸神皇冠培养模拟器',
-      icon: 'calculator',
-      permission: 'public',
-      order: 4,
-    },
-  },
+  })),
 ]
