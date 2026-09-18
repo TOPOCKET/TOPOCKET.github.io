@@ -19,8 +19,8 @@
 ### 1) 应用偏好（App Preferences）
 
 - Key：`sopronwitta:prefs:v1`
-- Store：`src/domains/home/services/prefs-store.ts`
-- Schema：`prefsSchema`
+- Store：`src/app/prefs/app-prefs-store.ts`
+- Schema：`appPrefsSchema`
 - 默认值：
   - `themeMode: "system"`
   - `homeKeyword: ""`
@@ -29,6 +29,7 @@
 - 迁移：
   - 读取旧 key `sopronwitta:prefs`
   - 校验通过后回写 `v1`
+  - 默认值必须由工厂创建，避免可变数组和对象被共享引用污染。
 
 ### 2) 常用链接数据（Links Data）
 
@@ -43,6 +44,7 @@
 - Store：`src/domains/tactics/services/tactics-store.ts`
 - Schema：`tacticsSaveSchema`
 - 默认值：双角色初始队伍、第一层、无进行中战斗
+- 读取策略：严格校验版本、容量、实体 ID、坐标、HP 和战斗关联；非法记录回退初始存档，不静默修复。
 
 ## 新工具接入清单
 

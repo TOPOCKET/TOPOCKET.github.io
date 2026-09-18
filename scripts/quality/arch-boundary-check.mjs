@@ -4,7 +4,7 @@ import path from 'node:path'
 const rootDir = process.cwd()
 const srcDir = path.join(rootDir, 'src')
 
-const importPattern = /from\s+['"]([^'"]+)['"]/g
+const importPattern = /(?:from\s+['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\))/g
 
 const errors = []
 
@@ -49,20 +49,43 @@ const isCrossDomainDeepImport = (currentDomain, importPath) => {
   return importPath !== expectedFacade
 }
 
+const resolveRelativeDomain = (filePath, importPath) => {
+  if (!importPath.startsWith('.')) return null
+  const resolved = path.resolve(path.dirname(filePath), importPath)
+  return getDomainNameFromPath(resolved)
+}
+
+const isDomainInternalImport = (importPath) =>
+  importPath.startsWith('@domains/') && importPath.split('/').length > 2
+
 const checkFile = (filePath) => {
   const relPath = path.relative(rootDir, filePath).split(path.sep).join('/')
   const content = fs.readFileSync(filePath, 'utf8')
   const currentDomain = getDomainNameFromPath(filePath)
   const isSharedFile = relPath.startsWith('src/shared/')
+  const isDataOrTypeFile = relPath.startsWith('src/data/') || relPath.startsWith('src/types/')
 
   for (const match of content.matchAll(importPattern)) {
-    const importPath = match[1]
+    const importPath = match[1] ?? match[2]
     if (isSharedFile && importPath.startsWith('@domains/')) {
       errors.push(`${relPath}: shared layer must not depend on domains (${importPath})`)
+    }
+    if (isSharedFile && (importPath.startsWith('@app/') || importPath.startsWith('@/app/'))) {
+      errors.push(`${relPath}: shared layer must not depend on app (${importPath})`)
+    }
+    if (isDataOrTypeFile && (importPath.startsWith('@domains/') || importPath.startsWith('@app/') || importPath.startsWith('@/app/'))) {
+      errors.push(`${relPath}: data/types layer must not depend on app or domains (${importPath})`)
     }
     if (currentDomain && isCrossDomainDeepImport(currentDomain, importPath)) {
       const targetDomain = resolveAliasDomain(importPath)
       errors.push(`${relPath}: cross-domain import must use facade @domains/${targetDomain} (${importPath})`)
+    }
+    if (currentDomain && isDomainInternalImport(importPath) && resolveAliasDomain(importPath) !== currentDomain) {
+      errors.push(`${relPath}: cross-domain import must use a domain facade (${importPath})`)
+    }
+    const relativeDomain = currentDomain ? resolveRelativeDomain(filePath, importPath) : null
+    if (currentDomain && relativeDomain && relativeDomain !== currentDomain) {
+      errors.push(`${relPath}: relative import must not cross domain boundaries (${importPath})`)
     }
   }
 }

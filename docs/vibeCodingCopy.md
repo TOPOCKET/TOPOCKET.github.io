@@ -10,7 +10,7 @@
 - 部署：`GitHub Pages + GitHub Actions`
 - 路由：必须使用 `Vue Router + createWebHashHistory()`
 - Pages 要求：
-  - `vite.config.ts` 配置 `base: '/<repo-name>/'`
+  - 用户站点仓库（`<owner>.github.io`）使用 `base: '/'`；项目站点才使用 `base: '/<repo-name>/'`
   - 自动部署 `dist/`，不手动提交构建产物
 - 路由元数据必须配置化（`tool-registry.ts`）：至少包含 `title/icon/permission/order`
 
@@ -34,7 +34,7 @@ public/
 ## 4. 数据驱动规则（强制）
 - `tools` / `prompts` / `links` 必须配置化维护。
 - 新增内容优先改数据文件，不优先改页面结构代码。
-- `tools/links/prompts` 必须在运行时做 schema 校验（`zod`）。
+- `tools/links/prompts` 必须使用 `src/shared/validation/schema.ts` 提供的轻量运行时 schema 校验。
 
 建议字段：
 - `tools`：名称、分类、路由、描述、标签
@@ -53,7 +53,7 @@ public/
 - `tools/` 内模块低耦合，不直接依赖其他工具内部实现
 - 每个工具至少拆为“视图层 + 逻辑层”
 - 禁止提交 `.env*`、密钥、token、私钥文件
-- 偏好状态统一通过 `useAppPrefs` 管理（主题跟随、筛选状态、最近使用）。
+- 应用偏好统一通过 `src/app/prefs/useAppPrefs.ts` 管理（主题、筛选状态、最近使用）。
 
 提交建议：
 - `feat: ...` 新功能
@@ -62,9 +62,9 @@ public/
 - `chore: ...` 配置/维护
 
 合并前最少检查：
-- `npm run build` 成功
+- `npm run quality` 成功（架构检查、测试和构建）
 - 关键页面无白屏、无控制台报错
-- `base` 与仓库名一致
+- `base` 与站点类型一致
 
 ## 7. 视觉总则（Raycast 方向）
 - 整体风格：Raycast 导向（命令中心感、高信息密度、可扫描）

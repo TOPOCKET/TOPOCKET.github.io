@@ -167,6 +167,6 @@ export const appRoutes: RouteRecordRaw[] = [
       icon: tool.icon,
       permission: tool.permission,
       order: tool.order,
-    } satisfies AppRouteMeta,
+  } satisfies AppRouteMeta,
   })),
 ]

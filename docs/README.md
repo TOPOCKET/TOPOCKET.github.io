@@ -5,8 +5,8 @@
 ## 当前状态
 
 - 站点已精简为轻量个人工具集合。
-- 当前保留首页工具导航、提示词模板和常用链接。
-- 工具入口、路由、分类和权限由 `src/app/tool-registry.ts` 统一派生。
+- 当前保留首页工具导航、无限战棋、提示词模板和常用链接。
+- 工具入口、路由和工具卡片由 `src/app/tool-registry.ts` 派生；分类定义位于 `src/data/tool-categories.ts`。
 
 ## 规范文档（长期维护）
 
@@ -19,15 +19,8 @@
 - [reference/ui-semantics.md](./reference/ui-semantics.md)  
   UI 语义规范
 
-## 归档文档（历史记录）
-
-- [archive/README.md](./archive/README.md)  
-  归档总入口（先看此页，再进入具体归档）
-- [archive/completed-work-archive.md](./archive/completed-work-archive.md)  
-  已完成优化路线与实施记录（主归档）
-
 ## 维护规则
 
-1. README 只保留项目入口与临时优化路线，不堆积过程日志。  
+1. README 只保留项目入口，不堆积过程日志。
 2. 规范变更写入 `reference/*` 或 `vibeCodingCopy.md`。  
-3. 阶段完成后将优化过程迁移到 `archive/completed-work-archive.md`。  
+3. 阶段性实现记录由 Git 历史承载；新增长期约束时更新对应规范文档。

@@ -1,219 +1,45 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import {
-  addCustomHero,
-  attackWithSelectedUnit,
-  claimVictoryRewards,
-  endPlayerTurn,
-  moveSelectedUnit,
-  selectTacticsUnit,
-  startTacticsBattle,
-  trainHeroStat,
-} from '../engine/tactics-engine'
-import type { TacticsHero, TacticsStats, TacticsUnit } from '../model/tactics-model'
-import { tacticsStore } from '../services/tactics-store'
+import { useTacticsGame } from '../application/useTacticsGame'
 
-const save = ref(tacticsStore.load())
-const message = ref('欢迎来到营地。')
-const customName = ref('')
-const customColor = ref('#a78bfa')
-
-const battle = computed(() => save.value.battle)
-const selectedUnit = computed(() =>
-  battle.value?.units.find((unit) => unit.id === battle.value?.selectedUnitId && unit.hp > 0) ?? null,
-)
-
-const cells = computed(() => {
-  const current = battle.value
-  if (!current) return []
-  return Array.from({ length: current.width * current.height }, (_, index) => ({
-    x: index % current.width,
-    y: Math.floor(index / current.width),
-    unit: current.units.find((unit) => unit.hp > 0 && unit.x === index % current.width && unit.y === Math.floor(index / current.width)) ?? null,
-  }))
-})
-
-const unitAt = (x: number, y: number): TacticsUnit | null =>
-  battle.value?.units.find((unit) => unit.hp > 0 && unit.x === x && unit.y === y) ?? null
-
-const hpPercent = (unit: TacticsUnit) => `${Math.max(0, Math.round((unit.hp / unit.stats.maxHp) * 100))}%`
-
-const statText = (stats: TacticsStats) =>
-  `HP ${stats.maxHp} / 攻 ${stats.atk} / 防 ${stats.def} / 移 ${stats.move} / 射 ${stats.range}`
-
-const selectHeroUnit = (unit: TacticsUnit) => {
-  save.value = selectTacticsUnit(save.value, unit.id)
-}
-
-const handleCell = (x: number, y: number) => {
-  const current = battle.value
-  if (!current || current.status !== 'fighting') return
-  const unit = unitAt(x, y)
-  if (unit?.side === 'player') {
-    selectHeroUnit(unit)
-    return
-  }
-  if (unit?.side === 'enemy') {
-    const result = attackWithSelectedUnit(save.value, unit.id)
-    save.value = result.save
-    message.value = result.message
-    return
-  }
-  const result = moveSelectedUnit(save.value, { x, y })
-  save.value = result.save
-  message.value = result.message
-}
-
-const startBattle = () => {
-  save.value = startTacticsBattle(save.value)
-  message.value = '战斗开始。'
-}
-
-const finishTurn = () => {
-  save.value = endPlayerTurn(save.value)
-  message.value = '回合推进。'
-}
-
-const claimRewards = () => {
-  save.value = claimVictoryRewards(save.value)
-  message.value = '奖励已领取，新的远征层数已开启。'
-}
-
-const resetRun = () => {
-  save.value = tacticsStore.reset()
-  message.value = '存档已重置。'
-}
-
-const train = (hero: TacticsHero, stat: keyof Pick<TacticsStats, 'maxHp' | 'atk' | 'def'>) => {
-  save.value = trainHeroStat(save.value, hero.id, stat)
-  message.value = `${hero.name} 完成训练。`
-}
-
-const addHero = () => {
-  const before = save.value.heroes.length
-  save.value = addCustomHero(save.value, customName.value, customColor.value)
-  if (save.value.heroes.length > before) {
-    message.value = '新角色已加入队伍。'
-    customName.value = ''
-  } else {
-    message.value = '请输入角色名。'
-  }
-}
-
-watch(
-  save,
-  (value) => {
-    tacticsStore.save(value)
-  },
-  { deep: true },
-)
+const { save, message, battle, selectedUnit, inspectedUnit, detailHero, cells, movableKeys, attackableIds, moveAttackByTarget, hpPercent, statText, actionText, estimatedDamage, activeSkills, pendingSkillId, prepareSkill, zoomBoard, zoomBoardWithWheel, boardZoom, boardPan, setBoardScroll, beginBoardPan, moveBoardPan, endBoardPan, inspectUnit, openHeroDetail, closeHeroDetail, heroAttributeSummary, handleCell, startBattle, finishTurn, claimRewards, resetRun, train, learnSkill, professionName, professionPassiveDetail, skillName, skillDetail, beginDrag, updateDrag, finishDrag, cancelDrag, dragUnitId, dragPoint, dragPreview, dragLanding, dragLandingKeys, dragPathKeys } = useTacticsGame()
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-    <header class="mb-6 flex flex-wrap items-center justify-between gap-4">
-      <div>
-        <h1 class="mb-1 text-2xl font-semibold text-[var(--text-primary)] sm:text-3xl">无限战棋</h1>
-        <p class="text-sm text-[var(--text-muted)] sm:text-base">本地存档、无限推进、角色自定义与局外成长。</p>
-      </div>
+  <main class="tactics-page">
+    <header class="tactics-header">
+      <div><h1>无限战棋</h1><p>拖动或点击操作；移动后仍可攻击。</p></div>
       <RouterLink to="/" class="ui-btn ui-btn--ghost">返回首页</RouterLink>
     </header>
-
-    <section class="mb-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-      <article class="surface-card p-4">
-        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p class="text-sm text-[var(--text-muted)]">远征层数</p>
-            <p class="text-2xl font-semibold text-[var(--text-primary)]">第 {{ save.stage }} 层</p>
-          </div>
-          <div class="text-sm text-[var(--text-muted)]">补给 {{ save.supplies }}</div>
-          <div class="flex flex-wrap gap-2">
-            <button v-if="!battle" class="ui-btn ui-btn--primary" type="button" @click="startBattle">开始远征</button>
-            <button v-else-if="battle.status === 'victory'" class="ui-btn ui-btn--primary" type="button" @click="claimRewards">领取奖励</button>
-            <button v-else-if="battle.status === 'defeat'" class="ui-btn ui-btn--primary" type="button" @click="startBattle">重开本层</button>
-            <button class="ui-btn ui-btn--ghost" type="button" @click="resetRun">重置存档</button>
-          </div>
-        </div>
-
-        <div v-if="battle" class="space-y-3">
-          <div class="flex flex-wrap items-center justify-between gap-2 text-sm text-[var(--text-muted)]">
-            <span>状态：{{ battle.status }} / 回合：{{ battle.round }} / {{ battle.turn === 'player' ? '我方' : '敌方' }}</span>
-            <button
-              class="ui-btn ui-btn--ghost"
-              type="button"
-              :disabled="battle.status !== 'fighting'"
-              @click="finishTurn"
-            >
-              结束回合
+    <section class="tactics-layout">
+      <aside class="tactics-side"><section class="surface-card side-panel roster-panel"><h2>队伍</h2><div class="team-roster"><button v-for="hero in save.heroes.slice(0, 6)" :key="hero.id" type="button" class="hero" @click="openHeroDetail(hero.id)"><div class="hero-heading"><b>{{ hero.name }}</b><small>Lv.{{ hero.level }}</small></div><p class="hero-profession">{{ professionName(hero) }}</p><div class="hero-stats"><span>HP {{ hero.stats.maxHp }}</span><span>攻 {{ hero.stats.atk }}</span><span>防 {{ hero.stats.def }}</span><span>移 {{ hero.stats.move }}</span><span>射 {{ hero.stats.range }}</span></div></button><button type="button" class="hero hero-card-link" @click="openHeroDetail(save.heroes[0].id)">角色详情</button></div></section></aside>
+      <article class="tactics-battlefield surface-card">
+        <div :ref="setBoardScroll" class="board-scroll" :class="{ panning: boardPan }" title="滚轮缩放；使用中键或 Alt + 左键拖拽平移棋盘" @wheel.prevent="zoomBoardWithWheel" @pointerdown="beginBoardPan" @pointermove="moveBoardPan" @pointerup="endBoardPan" @pointercancel="endBoardPan">
+          <div v-if="battle" class="board" :style="{ gridTemplateColumns: `repeat(${battle.width}, ${Math.round(38 * boardZoom)}px)`, gridAutoRows: `${Math.round(38 * boardZoom)}px` }" @pointermove="updateDrag" @pointerup="finishDrag" @pointercancel="cancelDrag">
+            <button v-for="cell in cells" :key="`${cell.x}-${cell.y}`" type="button" class="board-cell" data-tactics-cell :data-x="cell.x" :data-y="cell.y"
+              :class="{ selected: selectedUnit?.x === cell.x && selectedUnit?.y === cell.y, movable: movableKeys.has(`${cell.x},${cell.y}`), attackable: cell.unit && attackableIds.has(cell.unit.id), 'move-attackable': cell.unit && moveAttackByTarget.has(cell.unit.id), 'landing-option': dragLandingKeys.has(`${cell.x},${cell.y}`), 'preview-path': dragPathKeys.has(`${cell.x},${cell.y}`), landing: dragLanding?.x === cell.x && dragLanding?.y === cell.y, invalid: dragUnitId && dragPreview === 'invalid' }"
+              @pointerenter="inspectUnit(cell.unit)" @click="handleCell(cell.x, cell.y)">
+              <template v-if="cell.unit"><div class="unit" :style="{ backgroundColor: cell.unit.color + '33' }" @pointerdown.prevent="beginDrag($event, cell.unit)"><span>{{ cell.unit.name }}</span><small>{{ cell.unit.hp }}/{{ cell.unit.stats.maxHp }}</small><i :style="{ width: hpPercent(cell.unit) }" /><small v-if="cell.unit.energy" class="energy" :style="{ color: cell.unit.energy.color }">{{ cell.unit.energy.name }} {{ cell.unit.energy.current }}/{{ cell.unit.energy.max }}</small></div></template><span v-else-if="dragLanding?.x === cell.x && dragLanding?.y === cell.y" class="landing-ghost">落位</span>
             </button>
           </div>
-
-          <div class="grid max-w-[520px] grid-cols-8 gap-1">
-            <button
-              v-for="cell in cells"
-              :key="`${cell.x}-${cell.y}`"
-              type="button"
-              class="aspect-square rounded-[8px] border border-[var(--border)] bg-transparent p-1 text-left transition hover:border-[var(--border-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]"
-              :class="{ 'ring-2 ring-[var(--accent-soft)]': selectedUnit?.x === cell.x && selectedUnit?.y === cell.y }"
-              @click="handleCell(cell.x, cell.y)"
-            >
-              <template v-if="cell.unit">
-                <div class="flex h-full flex-col justify-between rounded-[6px] p-1 text-[10px]" :style="{ backgroundColor: cell.unit.color + '33' }">
-                  <span class="truncate font-semibold text-[var(--text-primary)]">{{ cell.unit.name }}</span>
-                  <span class="h-1 rounded-full bg-[var(--border)]">
-                    <span class="block h-full rounded-full bg-[var(--ok-text)]" :style="{ width: hpPercent(cell.unit) }" />
-                  </span>
-                </div>
-              </template>
-            </button>
-          </div>
+          <p v-else class="empty-state">在营地训练角色，准备后开始下一层远征。</p>
         </div>
-
-        <p v-else class="text-sm text-[var(--text-muted)]">在营地训练角色，准备后开始下一层远征。</p>
+        <section v-if="detailHero" class="hero-detail" aria-label="角色详情"><div class="hero-detail-head"><div><h2>{{ detailHero.name }}</h2><p>{{ professionName(detailHero) }} · Lv.{{ detailHero.level }} · 训练点 {{ detailHero.training }}</p></div><button class="ui-btn ui-btn--ghost" type="button" @click="closeHeroDetail">关闭</button></div><div class="attribute-grid"><div v-for="attribute in heroAttributeSummary(detailHero)" :key="attribute.label"><span>{{ attribute.label }}</span><b>{{ attribute.value }}</b></div></div><section class="detail-section"><h3>职业被动与已学技能</h3><article><b>职业被动</b><p>{{ professionPassiveDetail(detailHero.professionId) }}</p></article><article v-for="skillId in detailHero.learnedSkillIds" :key="skillId"><b>{{ skillName(skillId) }}</b><p>{{ skillDetail(skillId) }}</p></article></section><form v-if="detailHero.training > 0" class="detail-section" @submit.prevent><h3>升级属性</h3><p>消耗 1 个训练点，并生成技能候选。</p><div class="detail-actions"><button class="ui-btn ui-btn--ghost" type="submit" @click="train(detailHero, 'maxHp')">生命 +3</button><button class="ui-btn ui-btn--ghost" type="submit" @click="train(detailHero, 'atk')">攻击 +1</button><button class="ui-btn ui-btn--ghost" type="submit" @click="train(detailHero, 'def')">防御 +1</button></div></form><section v-if="detailHero.skillDraft" class="detail-section"><h3>获取技能</h3><button v-for="skillId in detailHero.skillDraft" :key="skillId" type="button" class="skill-choice" @click="learnSkill(detailHero, skillId)"><b>{{ skillName(skillId) }}</b><span>{{ skillDetail(skillId) }}</span></button></section></section>
       </article>
-
-      <aside class="space-y-4">
-        <section class="surface-card p-4">
-          <h2 class="mb-3 text-lg font-semibold text-[var(--text-primary)]">队伍</h2>
-          <div class="space-y-3">
-            <article v-for="hero in save.heroes" :key="hero.id" class="rounded-[12px] border border-[var(--border)] p-3">
-              <div class="mb-2 flex items-center justify-between gap-2">
-                <div class="flex items-center gap-2">
-                  <span class="h-3 w-3 rounded-full" :style="{ backgroundColor: hero.color }" />
-                  <span class="font-semibold text-[var(--text-primary)]">{{ hero.name }}</span>
-                </div>
-                <span class="text-xs text-[var(--text-muted)]">Lv.{{ hero.level }} / 训练 {{ hero.training }}</span>
-              </div>
-              <p class="mb-2 text-xs text-[var(--text-muted)]">{{ statText(hero.stats) }} / XP {{ hero.xp }}</p>
-              <div class="flex flex-wrap gap-1.5">
-                <button class="ui-btn ui-btn--ghost px-2 py-1 text-xs" type="button" :disabled="hero.training <= 0" @click="train(hero, 'maxHp')">HP</button>
-                <button class="ui-btn ui-btn--ghost px-2 py-1 text-xs" type="button" :disabled="hero.training <= 0" @click="train(hero, 'atk')">攻击</button>
-                <button class="ui-btn ui-btn--ghost px-2 py-1 text-xs" type="button" :disabled="hero.training <= 0" @click="train(hero, 'def')">防御</button>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <section class="surface-card p-4">
-          <h2 class="mb-3 text-lg font-semibold text-[var(--text-primary)]">自定义角色</h2>
-          <div class="grid gap-2">
-            <input v-model="customName" class="ui-input px-3 py-2 text-sm" maxlength="8" placeholder="角色名">
-            <div class="flex gap-2">
-              <input v-model="customColor" class="h-10 w-14 rounded-[10px] border border-[var(--border)] bg-transparent" type="color">
-              <button class="ui-btn ui-btn--primary flex-1" type="button" @click="addHero">加入队伍</button>
-            </div>
-          </div>
-        </section>
-
-        <section class="surface-card p-4">
-          <h2 class="mb-2 text-lg font-semibold text-[var(--text-primary)]">记录</h2>
-          <p class="mb-2 text-sm text-[var(--text-secondary)]">{{ message }}</p>
-          <ol class="space-y-1 text-xs text-[var(--text-muted)]">
-            <li v-for="entry in battle?.log ?? []" :key="entry">{{ entry }}</li>
-          </ol>
-        </section>
+      <aside class="battle-sidebar">
+        <section class="tactics-status surface-card"><div><b>第 {{ save.stage }} 层</b><span>补给 {{ save.supplies }}</span></div><p v-if="battle">{{ battle.status }} · 第 {{ battle.round }} 回合 · {{ battle.turn === 'player' ? '我方回合' : '敌方回合' }}</p><p>{{ message }}</p><div class="status-actions"><button v-if="!battle" class="ui-btn ui-btn--primary" type="button" @click="startBattle">开始远征</button><button v-else-if="battle.status === 'victory'" class="ui-btn ui-btn--primary" type="button" @click="claimRewards">领取奖励</button><button v-else-if="battle.status === 'defeat'" class="ui-btn ui-btn--primary" type="button" @click="startBattle">重开本层</button><button v-else class="ui-btn ui-btn--ghost" type="button" @click="finishTurn">结束回合</button><button class="ui-btn ui-btn--ghost" type="button" @click="resetRun">重置</button></div></section>
+        <section class="battle-title surface-card"><h2>战场信息</h2><template v-if="inspectedUnit"><div class="unit-summary"><b>{{ inspectedUnit.name }}</b><span>{{ inspectedUnit.side === 'enemy' ? '敌方' : '我方' }} · {{ inspectedUnit.hp }}/{{ inspectedUnit.stats.maxHp }} HP</span></div><p v-if="inspectedUnit.side === 'player'">{{ actionText(inspectedUnit) }}</p><p>{{ statText(inspectedUnit.stats) }}</p><p v-if="inspectedUnit.energy" :style="{ color: inspectedUnit.energy.color }">{{ inspectedUnit.energy.name }} {{ inspectedUnit.energy.current }}/{{ inspectedUnit.energy.max }}</p><p v-if="estimatedDamage">预计对 {{ inspectedUnit.name }} 造成 {{ estimatedDamage }} 点伤害</p></template><p v-else>选择或悬停单位查看数值与伤害预估。</p><div class="battle-toolbar"><div class="skill-bar"><button v-for="skill in activeSkills" :key="skill!.id" class="ui-btn ui-btn--ghost" :class="{ selected: pendingSkillId === skill!.id }" :title="skillDetail(skill!.id)" @click="prepareSkill(skill!.id)">{{ skill!.name }}</button><p v-if="pendingSkillId" class="skill-detail">{{ skillDetail(pendingSkillId) }}</p></div><div class="zoom-controls"><button @click="zoomBoard(-.1)">−</button><span>{{ Math.round(boardZoom / 1.3 * 100) }}%</span><button @click="zoomBoard(.1)">+</button></div></div></section>
+        <section class="battle-log surface-card"><h2>战斗日志</h2><ol v-if="battle?.log.length"><li v-for="entry in battle.log" :key="entry">{{ entry }}</li></ol><p v-else>尚未开始战斗。</p></section>
       </aside>
     </section>
+    <div v-if="dragUnitId && dragPoint" class="drag-piece" :style="{ left: `${dragPoint.x + 12}px`, top: `${dragPoint.y + 12}px` }">{{ dragPreview === 'move-attack' && dragLanding ? `移动后攻击：落位 (${dragLanding.x + 1}, ${dragLanding.y + 1})` : dragPreview === 'attack' ? '攻击' : dragPreview === 'move' ? '移动' : '无效目标' }}</div>
   </main>
 </template>
+
+<style scoped>
+.tactics-page { height:100dvh; overflow:hidden; display:grid; grid-template-rows:auto minmax(0,1fr); gap:.75rem; padding:max(.75rem, env(safe-area-inset-top)) max(.75rem, env(safe-area-inset-right)) max(.75rem, env(safe-area-inset-bottom)) max(.75rem, env(safe-area-inset-left)); }.tactics-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem }.tactics-header h1,.battle-title h2,.battle-log h2,.side-panel h2 { margin:0; color:var(--text-primary) }.tactics-header p,.battle-title p,.battle-log p,.battle-hint,.hero p,.hero small,.battle-log li { margin:.2rem 0; color:var(--text-muted); font-size:.78rem }
+.tactics-layout { min-height:0; display:grid; grid-template-columns:240px minmax(0,1fr) 290px; gap:.75rem }.tactics-battlefield,.tactics-side,.battle-sidebar { min-height:0; overflow:hidden }.tactics-battlefield { position:relative; padding:.5rem; display:grid; grid-template-rows:minmax(0,1fr) }.battle-toolbar { display:flex; align-items:center; justify-content:space-between; gap:.5rem; min-height:30px; margin-bottom:.55rem; background:none; border:0; border-radius:0; overflow:hidden }.skill-bar { min-width:0; display:flex; align-items:center; gap:.35rem; overflow-x:auto; white-space:nowrap }.zoom-controls { flex:none; display:flex; align-items:center; gap:.25rem; font-size:.7rem }.zoom-controls button { width:22px; height:22px; border:1px solid var(--border); border-radius:4px; background:transparent; color:var(--text-primary) }.skill-detail { display:none }.skill-bar .selected { border-color:#a855f7; background:#a855f733 }.board-scroll { min-height:0; overflow:auto; overscroll-behavior:contain; padding:.25rem; cursor:grab; user-select:none; scrollbar-width:none }.board-scroll::-webkit-scrollbar { display:none }.board-scroll.panning { cursor:grabbing }.board { display:grid; gap:0; width:max-content; margin:auto }.board-cell { position:relative; width:100%; height:100%; min-height:0; border:1px solid color-mix(in srgb, var(--border) 85%, #fff); border-radius:0; background:transparent; padding:3px; touch-action:none }.board-cell.selected { outline:2px solid var(--accent-soft) }.board-cell.movable { background:color-mix(in srgb, var(--accent-soft) 25%, transparent) }.board-cell.attackable { border-color:#ef4444; background:#ef444422 }.board-cell.move-attackable { border-color:#a855f7; background:#a855f722 }.board-cell.invalid { opacity:.55 }.unit { position:relative; height:100%; display:flex; flex-direction:column; justify-content:space-between; border-radius:2px; padding:2px; text-align:left; color:var(--text-primary); font-size:.6rem; cursor:grab }.unit small { font-size:.52rem }.unit i { height:3px; background:var(--ok-text); border-radius:99px }.unit .energy { font-weight:700 }.side-panel { height:100%; min-height:0; overflow:hidden; padding:.75rem; display:flex; flex-direction:column }.team-roster { min-height:0; flex:1; display:grid; grid-template-rows:repeat(7,minmax(0,1fr)); gap:.35rem }.hero { border:1px solid var(--border); border-radius:8px; padding:.4rem .5rem; margin:0; overflow:hidden; display:grid; align-content:center; gap:.18rem; color:var(--text-primary); text-decoration:none; background:transparent; text-align:left; cursor:pointer }.hero-heading,.hero-stats,.tactics-status>div,.unit-summary,.status-actions { display:flex; align-items:center; justify-content:space-between; gap:.35rem }.hero-profession { color:var(--accent)!important; font-weight:600 }.hero-stats { justify-content:flex-start; flex-wrap:wrap; font-size:.66rem; color:var(--text-secondary) }.hero-card-link { display:grid; place-items:center; color:var(--accent); font-weight:700; text-align:center }.hero-detail { position:absolute; z-index:12; inset:.5rem; overflow:auto; padding:1rem; border:1px solid var(--border); border-radius:10px; background:var(--surface, #171717); color:var(--text-primary); box-shadow:0 12px 30px #0008 }.hero-detail-head { display:flex; justify-content:space-between; gap:.75rem }.hero-detail-head h2,.hero-detail h3 { margin:0 }.hero-detail p { color:var(--text-muted); font-size:.82rem }.attribute-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.45rem; margin:1rem 0 }.attribute-grid div { display:flex; justify-content:space-between; gap:.25rem; padding:.45rem; border:1px solid var(--border); border-radius:6px; font-size:.75rem }.attribute-grid span { color:var(--text-muted) }.detail-section { display:grid; gap:.45rem; margin-top:1rem; padding-top:1rem; border-top:1px solid var(--border) }.detail-section article { padding:.45rem; border:1px solid var(--border); border-radius:6px }.detail-section article p { margin:.2rem 0 0 }.detail-actions { display:flex; flex-wrap:wrap; gap:.5rem }.skill-choice { display:grid; gap:.2rem; width:100%; padding:.55rem; border:1px solid var(--border); border-radius:6px; background:transparent; color:var(--text-primary); text-align:left }.skill-choice span { color:var(--text-muted); font-size:.75rem }.battle-sidebar { display:grid; grid-template-rows:auto auto minmax(0,1fr); gap:.75rem }.tactics-status,.battle-title,.battle-log { min-width:0; padding:.75rem }.tactics-status { font-size:.82rem; color:var(--text-secondary) }.tactics-status p { margin:.35rem 0; font-size:.75rem; color:var(--text-muted) }.status-actions { justify-content:flex-start; flex-wrap:wrap }.battle-title p { overflow-wrap:anywhere }.battle-log { min-height:0; display:flex; flex-direction:column }.battle-log ol { min-height:0; margin:.45rem 0 0; padding-left:1.15rem; overflow:auto; scrollbar-width:thin }.battle-hint { margin-top:.6rem!important }.drag-piece { position:fixed; z-index:20; pointer-events:none; max-width:220px; padding:.45rem .65rem; border:1px solid #c4b5fd; border-radius:8px; background:#1e1b4b; color:#fff; font-size:.78rem; font-weight:700; line-height:1.3; box-shadow:0 4px 14px #0008 }
+.board-cell.preview-path { box-shadow:inset 0 0 0 2px #a855f766 }.board-cell.landing { border:2px solid #a855f7; background:#a855f744 }.landing-ghost { display:grid; place-items:center; height:100%; color:#d8b4fe; font-size:.72rem; font-weight:700; border:1px dashed #a855f7; border-radius:5px }
+.board-cell.landing-option { border-color:#a855f7; background:#a855f720 }.board-cell.landing-option::after { content:'可落位'; position:absolute; right:3px; bottom:2px; color:#e9d5ff; font-size:.56rem }
+@media (max-width: 980px) { .tactics-layout { grid-template-columns:190px minmax(0,1fr) 250px }.tactics-header p { display:none } } @media (max-width: 760px) { .tactics-layout { grid-template-columns:1fr; grid-template-rows:minmax(48%,1fr) minmax(0,1fr) auto }.tactics-side { grid-row:2 }.tactics-battlefield { grid-row:1 }.battle-sidebar { grid-row:3; grid-template-columns:1fr; grid-template-rows:auto auto minmax(180px,1fr) }.board { margin:0 }.team-roster { min-height:320px } }
+</style>

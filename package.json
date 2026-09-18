@@ -8,7 +8,8 @@
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "arch:check": "node scripts/quality/arch-boundary-check.mjs"
+    "arch:check": "node scripts/quality/arch-boundary-check.mjs",
+    "quality": "npm run arch:check && npm test && npm run build"
   },
   "dependencies": {
     "vue": "^3.5.32",

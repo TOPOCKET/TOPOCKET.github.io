@@ -43,7 +43,6 @@ src/
   app/                # 工具注册表与路由派生
   domains/            # 业务域（页面与域内逻辑）
   shared/             # 跨域共享门面
-  config/             # 运行时配置
   data/               # 配置数据与 schema
   shared/style/       # tokens + components
   types/              # 类型定义
